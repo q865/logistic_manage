@@ -13,7 +13,7 @@ const knexConfig: KnexType.Config = {
   client: "sqlite3",
   connection: {
     // Используем абсолютный путь, чтобы избежать проблем с CWD
-    filename: path.resolve(__dirname, "../../../drivers.db")
+    filename: path.resolve(__dirname, "../../drivers.db")
   },
   useNullAsDefault: true,
   migrations: {

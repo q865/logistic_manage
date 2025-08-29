@@ -1,8 +1,9 @@
+
 // src/services/driverService.ts
 import { knexInstance as db } from '../database/knex.js';
 import type { Driver, NewDriver } from '../models/Driver.js';
 
-// Вспомогательная функция для преобразования данных из БД в объект Driver
+// ... (mapDbRowToDriver и mapDriverToDbRow без изменений)
 const mapDbRowToDriver = (row: any): Driver => {
   if (!row) return row;
   return {
@@ -16,8 +17,6 @@ const mapDbRowToDriver = (row: any): Driver => {
     updatedAt: new Date(row.updated_at),
   };
 };
-
-// Вспомогательная функция для преобразования данных для записи в БД
 const mapDriverToDbRow = (data: Partial<NewDriver>) => {
   const flatData: Record<string, any> = {};
   for (const key in data) {
@@ -31,8 +30,18 @@ const mapDriverToDbRow = (data: Partial<NewDriver>) => {
   return flatData;
 };
 
+interface PaginationParams {
+  page: number;
+  limit: number;
+}
+
+interface PaginatedDrivers {
+  drivers: Driver[];
+  total: number;
+}
 
 export class DriverService {
+  // ... (createDriver, findDriverById без изменений)
   public async createDriver(data: NewDriver): Promise<Driver> {
     const flatData = mapDriverToDbRow(data);
     const [newDriverRow] = await db('drivers').insert(flatData).returning('*');
@@ -44,11 +53,22 @@ export class DriverService {
     return mapDbRowToDriver(row);
   }
 
-  public async getAllDrivers(): Promise<Driver[]> {
-    const rows = await db('drivers').select('*');
-    return rows.map(mapDbRowToDriver);
+  public async getAllDrivers({ page, limit }: PaginationParams): Promise<PaginatedDrivers> {
+    const offset = (page - 1) * limit;
+
+    // Выполняем два запроса параллельно для эффективности
+    const [rows, totalResult] = await Promise.all([
+      db('drivers').select('*').limit(limit).offset(offset),
+      db('drivers').count('id as total').first()
+    ]);
+    
+    const drivers = rows.map(mapDbRowToDriver);
+    const total = (totalResult as { total: number }).total;
+
+    return { drivers, total };
   }
 
+  // ... (updateDriver, deleteDriver без изменений)
   public async updateDriver(id: number, data: Partial<NewDriver>): Promise<Driver | null> {
     const flatData = mapDriverToDbRow(data);
     const [updatedDriverRow] = await db('drivers')

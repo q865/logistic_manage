@@ -18,39 +18,30 @@ const TEMPLATES_DIR = path.resolve(process.cwd(), 'templates');
 function flattenDriverData(driver: Driver): Record<string, any> {
   const flatData: Record<string, any> = {};
 
-  // ... (остальная логика без изменений)
-  for (const [key, value] of Object.entries(driver)) {
-    if (typeof value !== 'object' && value !== null) {
-      flatData[key.toLowerCase()] = value;
+  // Сначала "разворачиваем" все вложенные объекты
+  for (const key in driver) {
+    // @ts-ignore
+    if (typeof driver[key] === 'object' && driver[key] !== null) {
+      // @ts-ignore
+      for (const nestedKey in driver[key]) {
+        // @ts-ignore
+        flatData[nestedKey.toLowerCase()] = driver[key][nestedKey];
+      }
+    } else {
+      // @ts-ignore
+      flatData[key.toLowerCase()] = driver[key];
     }
+  }
+
+  // Добавляем кастомные форматированные поля
+  if (driver.personalData?.birthDate) {
+    flatData['birthdate_formatted'] = new Date(driver.personalData.birthDate).toLocaleDateString('ru-RU');
+  }
+  if (driver.passport?.issueDate) {
+    flatData['issuedate_formatted'] = new Date(driver.passport.issueDate).toLocaleDateString('ru-RU');
   }
   if (driver.personalData) {
-    for (const [key, value] of Object.entries(driver.personalData)) {
-      flatData[key.toLowerCase()] = value;
-    }
-  }
-  if (driver.passport) {
-    for (const [key, value] of Object.entries(driver.passport)) {
-      flatData[`passport_${key.toLowerCase()}`] = value;
-    }
-  }
-  if (driver.vehicle) {
-    for (const [key, value] of Object.entries(driver.vehicle)) {
-      flatData[`vehicle_${key.toLowerCase()}`] = value;
-    }
-  }
-  if (driver.driverLicense) {
-    for (const [key, value] of Object.entries(driver.driverLicense)) {
-      flatData[`driver_license_${key.toLowerCase()}`] = value;
-    }
-  }
-  if (driver.leaseAgreement) {
-    for (const [key, value] of Object.entries(driver.leaseAgreement)) {
-      flatData[`lease_agreement_${key.toLowerCase()}`] = value;
-    }
-  }
-  if (driver.personalData?.birthDate) {
-      flatData['birthdate_formatted'] = new Date(driver.personalData.birthDate).toLocaleDateString('ru-RU');
+    flatData['fullname'] = `${driver.personalData.lastName || ''} ${driver.personalData.firstName || ''} ${driver.personalData.patronymic || ''}`.trim();
   }
 
   return flatData;
@@ -79,8 +70,6 @@ export async function generateLeaseAgreement(driverId: number, driverService: Dr
   });
 
   const dataForTemplate = flattenDriverData(driver);
-  
-  console.log('Данные для шаблона:', dataForTemplate);
 
   doc.setData(dataForTemplate);
 
