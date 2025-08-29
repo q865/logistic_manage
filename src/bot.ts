@@ -23,10 +23,8 @@ export function createBot(token: string, driverService: DriverService) {
            `**🚗 Автомобиль**\n` +
            `*Марка/Модель:* ${driver.vehicle.make} ${driver.vehicle.model}\n` +
            `*Гос. номер:* ${driver.vehicle.licensePlate}\n` +
-           `*Год выпуска:* ${driver.vehicle.year}\n` +
-           `*VIN:* 
-${driver.vehicle.vin}
-``;
+           `*Год выпуска:* ${driver.vehicle.year}
+` +           `*VIN:* ${driver.vehicle.vin}`
   };
 
   const createDriversListMessage = async (page = 1) => {

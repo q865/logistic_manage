@@ -45,7 +45,7 @@ export class DriverService {
   public async createDriver(data: NewDriver): Promise<Driver> {
     const flatData = mapDriverToDbRow(data);
     const [newDriverRow] = await db('drivers').insert(flatData).returning('*');
-    return mapDbRowToDriver(newDriverRow);
+    return mapDbRowToDriver(newDriverRow)!;
   }
 
   public async findDriverById(id: number): Promise<Driver | null> {
@@ -65,7 +65,7 @@ export class DriverService {
       db('drivers').count('id as total').first()
     ]);
     
-    const drivers = rows.map(mapDbRowToDriver);
+    const drivers = rows.map(mapDbRowToDriver).filter(Boolean) as Driver[];
     const total = (totalResult as { total: number }).total;
 
     return { drivers, total };
