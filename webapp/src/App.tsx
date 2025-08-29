@@ -10,7 +10,7 @@ import '@fontsource/roboto/400.css';
 import '@fontsource/roboto/500.css';
 import '@fontsource/roboto/700.css';
 
-import { PersonalData, Passport, Vehicle } from './types';
+import type { PersonalData, Passport, Vehicle } from './types.js';
 
 const API_URL = 'http://localhost:3000/api/drivers';
 
