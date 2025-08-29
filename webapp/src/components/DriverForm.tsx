@@ -73,7 +73,19 @@ export function DriverForm({ onDriverCreated }: DriverFormProps) {
     };
 
     try {
-      await axios.post(API_URL, driverData);
+      const response = await axios.post(API_URL, driverData);
+      const newDriverId = response.data.id;
+      
+      // Отправляем уведомление через веб-хук
+      try {
+        await axios.post('http://localhost:3000/api/webhook/driver-created', {
+          driverId: newDriverId,
+          driverName: `${driverData.personalData.lastName} ${driverData.personalData.firstName}`
+        });
+      } catch (webhookError) {
+        console.warn('Не удалось отправить уведомление:', webhookError);
+      }
+      
       setFormMessage({ type: 'success', text: `Водитель "${driverData.personalData.lastName}" успешно создан!` });
       resetForm();
       onDriverCreated();

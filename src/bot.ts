@@ -6,10 +6,12 @@ import path from 'path';
 import { Bot, InlineKeyboard, InputFile } from 'grammy';
 import { DriverService } from './services/driverService.js';
 import { generateLeaseAgreement } from './services/documentService.js';
+import { notificationService } from './services/notificationService.js';
 import type { Driver } from './models/Driver.js';
 
 const PAGE_LIMIT = 5;
 const INSTRUCTIONS_DIR = path.resolve(process.cwd(), 'instructions');
+const WEBAPP_URL = process.env.WEBAPP_URL || 'http://localhost:5173';
 
 // --- Структура инструкций ---
 const instructions = {
@@ -27,6 +29,7 @@ export function createBot(token: string, driverService: DriverService) {
   bot.api.setMyCommands([
     { command: 'start', description: '🚀 Запуск бота и справка' },
     { command: 'drivers', description: '👥 Список водителей' },
+    { command: 'webapp', description: '🌐 Открыть веб-форму' },
     { command: 'instructions', description: '📚 База знаний' },
   ]);
 
@@ -71,14 +74,38 @@ export function createBot(token: string, driverService: DriverService) {
 
   // --- Команды ---
   bot.command(['start', 'help'], (ctx) => {
+    const keyboard = new InlineKeyboard()
+      .text('👥 Список водителей', 'drivers_page_1').row()
+      .text('🌐 Веб-форма', 'open_webapp').row()
+      .text('📚 База знаний', 'open_instructions');
+    
     ctx.reply(
       '👋 **Добро пожаловать в Driver Bot!**\n\n' +
       'Это ваш оперативный помощник для управления водителями и задачами.\n\n' +
       '**Доступные команды:**\n' +
       '/drivers - Показать список водителей\n' +
+      '/webapp - Открыть веб-форму для управления\n' +
       '/driver <ID> - Показать карточку водителя\n' +
       '/instructions - Открыть базу знаний',
-      { parse_mode: 'Markdown' }
+      { parse_mode: 'Markdown', reply_markup: keyboard }
+    );
+  });
+
+  bot.command('webapp', (ctx) => {
+    const keyboard = new InlineKeyboard()
+      .url('🌐 Открыть веб-форму', WEBAPP_URL)
+      .row()
+      .text('👥 Список водителей', 'drivers_page_1')
+      .text('📚 База знаний', 'open_instructions');
+    
+    ctx.reply(
+      '🌐 **Веб-форма для управления водителями**\n\n' +
+      'Нажмите кнопку ниже, чтобы открыть удобную веб-форму для:\n' +
+      '• Создания новых водителей\n' +
+      '• Редактирования существующих\n' +
+      '• Просмотра списка с пагинацией\n' +
+      '• Управления данными',
+      { parse_mode: 'Markdown', reply_markup: keyboard }
     );
   });
 
@@ -162,6 +189,29 @@ export function createBot(token: string, driverService: DriverService) {
     await ctx.editMessageText(text, { parse_mode: 'Markdown', reply_markup: keyboard });
   });
 
+  bot.callbackQuery('open_webapp', (ctx) => {
+    const keyboard = new InlineKeyboard()
+      .url('🌐 Открыть веб-форму', WEBAPP_URL)
+      .row()
+      .text('👥 Список водителей', 'drivers_page_1')
+      .text('📚 База знаний', 'open_instructions');
+    
+    ctx.editMessageText(
+      '🌐 **Веб-форма для управления водителями**\n\n' +
+      'Нажмите кнопку ниже, чтобы открыть удобную веб-форму для:\n' +
+      '• Создания новых водителей\n' +
+      '• Редактирования существующих\n' +
+      '• Просмотра списка с пагинацией\n' +
+      '• Управления данными',
+      { parse_mode: 'Markdown', reply_markup: keyboard }
+    );
+  });
+
+  bot.callbackQuery('open_instructions', (ctx) => {
+    const { text, keyboard } = getInstructionsMenu();
+    ctx.editMessageText(text, { parse_mode: 'Markdown', reply_markup: keyboard });
+  });
+
   // --- Заглушки для новых функций ---
   bot.callbackQuery(/(todo_list|calculate_route|edit_driver)_(\d+)/, async (ctx) => {
     await ctx.answerCallbackQuery({
@@ -211,6 +261,9 @@ export async function startBot() {
   }
   const driverService = new DriverService();
   const bot = createBot(BOT_TOKEN, driverService);
+  
+  // Инициализируем сервис уведомлений с ботом
+  notificationService.setBot(bot);
   
   console.log('Запускаю Telegram-бота...');
   await bot.start();

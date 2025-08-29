@@ -76,6 +76,17 @@ export function DriverEditForm({ driverId, onUpdateSuccess, onCancel }: DriverEd
     
     try {
       await axios.put(`${API_URL}/${driverId}`, updatePayload);
+      
+      // Отправляем уведомление через веб-хук
+      try {
+        await axios.post('http://localhost:3000/api/webhook/driver-updated', {
+          driverId: driverId,
+          driverName: `${formData.personalData?.lastName} ${formData.personalData?.firstName}`
+        });
+      } catch (webhookError) {
+        console.warn('Не удалось отправить уведомление:', webhookError);
+      }
+      
       setFormMessage({ type: 'success', text: 'Данные водителя успешно обновлены!' });
       setTimeout(onUpdateSuccess, 1500); // Возвращаемся к списку через 1.5с
     } catch (error) {

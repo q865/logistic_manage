@@ -86,9 +86,27 @@ export function DriverList({ onEdit }: DriverListProps) {
   const handleConfirmDelete = async () => {
     if (driverToDelete === null) return;
     const id = driverToDelete;
+    
+    // Находим водителя для получения имени перед удалением
+    const driverToDeleteData = drivers.find(d => d.id === id);
+    const driverName = driverToDeleteData ? 
+      `${driverToDeleteData.personalData.lastName} ${driverToDeleteData.personalData.firstName}` : 
+      `ID ${id}`;
+    
     handleCloseDialog();
     try {
       await axios.delete(`${API_URL}/${id}`);
+      
+      // Отправляем уведомление через веб-хук
+      try {
+        await axios.post('http://localhost:3000/api/webhook/driver-deleted', {
+          driverId: id,
+          driverName: driverName
+        });
+      } catch (webhookError) {
+        console.warn('Не удалось отправить уведомление:', webhookError);
+      }
+      
       // После успешного удаления перезагружаем текущую страницу
       fetchDrivers(); 
     } catch (err) {
