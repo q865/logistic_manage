@@ -1,25 +1,11 @@
 // src/database/knex.ts
-import type { Knex as KnexType } from 'knex';
-import Knex from 'knex';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import knex from 'knex';
+import * as knexConfig from '../knexfile.js';
 
-// Определяем __dirname для ES Modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Определяем, какую конфигурацию использовать, на основе переменной окружения
+const environment = process.env.NODE_ENV || 'development';
+const config = environment === 'test' ? knexConfig.test : knexConfig.development;
 
-// Конфигурация Knex теперь находится прямо здесь
-const knexConfig: KnexType.Config = {
-  client: "sqlite3",
-  connection: {
-    // Используем абсолютный путь, чтобы избежать проблем с CWD
-    filename: path.resolve(__dirname, "../../drivers.db")
-  },
-  useNullAsDefault: true,
-  migrations: {
-    directory: path.resolve(__dirname, './migrations')
-  }
-};
+console.log(`[Knex] Initializing connection for [${environment}] environment.`);
 
-// Создаем и экспортируем единственный экземпляр Knex
-export const knexInstance = Knex(knexConfig);
+export const knexInstance = knex(config);

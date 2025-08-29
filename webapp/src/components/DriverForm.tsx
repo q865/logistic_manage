@@ -8,31 +8,28 @@ import type { PersonalData, Passport, Vehicle, DriverLicense, LeaseAgreement } f
 
 const API_URL = 'http://localhost:3000/api/drivers';
 
-// Начальные состояния для каждого блока формы
+// Обновленные начальные состояния
 const initialPersonalData: PersonalData = { lastName: '', firstName: '', patronymic: '', birthDate: null };
 const initialPassport: Passport = { series: '', number: '', issuedBy: '', departmentCode: '', registrationAddress: '', issueDate: null };
 const initialVehicle: Vehicle = { make: '', model: '', licensePlate: '', vin: '', year: '', type: '', chassis: '', bodyColor: '', bodyNumber: '', ptsNumber: '', stsNumber: '', stsIssueInfo: '' };
-const initialDriverLicense: DriverLicense = { number: '' };
-const initialLeaseAgreement: LeaseAgreement = { number: '' };
+const initialDriverLicense: DriverLicense = { series: '', number: '', issueDate: null, expiryDate: null, categories: '' };
+const initialLeaseAgreement: LeaseAgreement = { number: '', date: null };
 
 interface DriverFormProps {
-  onDriverCreated: () => void; // Callback для обновления списка после создания
+  onDriverCreated: () => void;
 }
 
 export function DriverForm({ onDriverCreated }: DriverFormProps) {
-  // Состояния для каждого блока данных
   const [personalData, setPersonalData] = useState(initialPersonalData);
   const [passport, setPassport] = useState(initialPassport);
   const [vehicle, setVehicle] = useState(initialVehicle);
   const [driverLicense, setDriverLicense] = useState(initialDriverLicense);
   const [leaseAgreement, setLeaseAgreement] = useState(initialLeaseAgreement);
 
-  // Состояния для UI
   const [formMessage, setFormMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
 
-  // Универсальные обработчики
   const createChangeHandler = <T,>(setter: React.Dispatch<React.SetStateAction<T>>) => (event: React.ChangeEvent<HTMLInputElement>) => {
     setter(prev => ({ ...prev, [event.target.name]: event.target.value }));
   };
@@ -64,15 +61,22 @@ export function DriverForm({ onDriverCreated }: DriverFormProps) {
       personalData: { ...personalData, birthDate: personalData.birthDate?.format('YYYY-MM-DD') },
       passport: { ...passport, issueDate: passport.issueDate?.format('YYYY-MM-DD') },
       vehicle: { ...vehicle, year: parseInt(vehicle.year, 10) || 0 },
-      driverLicense,
-      leaseAgreement,
+      driverLicense: { 
+        ...driverLicense, 
+        issueDate: driverLicense.issueDate?.format('YYYY-MM-DD'),
+        expiryDate: driverLicense.expiryDate?.format('YYYY-MM-DD'),
+      },
+      leaseAgreement: {
+        ...leaseAgreement,
+        date: leaseAgreement.date?.format('YYYY-MM-DD'),
+      },
     };
 
     try {
       await axios.post(API_URL, driverData);
       setFormMessage({ type: 'success', text: `Водитель "${driverData.personalData.lastName}" успешно создан!` });
       resetForm();
-      onDriverCreated(); // Вызываем callback
+      onDriverCreated();
     } catch (error) {
       if (axios.isAxiosError(error) && error.response?.status === 400) {
         const newErrors: Record<string, string> = {};
@@ -107,15 +111,29 @@ export function DriverForm({ onDriverCreated }: DriverFormProps) {
 
         {/* --- Документы --- */}
         <Typography variant="h6" gutterBottom sx={{ mt: 4 }}>2. Документы</Typography>
+        <Divider sx={{ mb: 2 }}><Typography variant="subtitle2">Паспорт</Typography></Divider>
         <Grid container spacing={2}>
-          <Grid xs={12} sm={6}><TextField fullWidth name="number" label="Номер ВУ" value={driverLicense.number} onChange={handleDriverLicenseChange} error={!!errors['driverLicense.number']} helperText={errors['driverLicense.number']} disabled={isLoading} /></Grid>
-          <Grid xs={12} sm={6}><TextField fullWidth name="number" label="Номер договора аренды" value={leaseAgreement.number} onChange={handleLeaseAgreementChange} error={!!errors['leaseAgreement.number']} helperText={errors['leaseAgreement.number']} disabled={isLoading} /></Grid>
           <Grid xs={6} sm={3}><TextField required fullWidth name="series" label="Серия паспорта" value={passport.series} onChange={handlePassportChange} error={!!errors['passport.series']} helperText={errors['passport.series']} disabled={isLoading} /></Grid>
           <Grid xs={6} sm={3}><TextField required fullWidth name="number" label="Номер паспорта" value={passport.number} onChange={handlePassportChange} error={!!errors['passport.number']} helperText={errors['passport.number']} disabled={isLoading} /></Grid>
           <Grid xs={12} sm={6}><DatePicker label="Дата выдачи паспорта" value={passport.issueDate} onChange={createDateChangeHandler(setPassport, 'issueDate')} sx={{ width: '100%' }} slotProps={{ textField: { error: !!errors['passport.issueDate'], helperText: errors['passport.issueDate'], required: true } }} disabled={isLoading} /></Grid>
           <Grid xs={12} sm={6}><TextField required fullWidth name="departmentCode" label="Код подразделения" value={passport.departmentCode} onChange={handlePassportChange} error={!!errors['passport.departmentCode']} helperText={errors['passport.departmentCode']} disabled={isLoading} /></Grid>
-          <Grid xs={12}><TextField required fullWidth name="issuedBy" label="Кем выдан" value={passport.issuedBy} onChange={handlePassportChange} error={!!errors['passport.issuedBy']} helperText={errors['passport.issuedBy']} disabled={isLoading} /></Grid>
+          <Grid xs={12} sm={6}><TextField required fullWidth name="issuedBy" label="Кем выдан" value={passport.issuedBy} onChange={handlePassportChange} error={!!errors['passport.issuedBy']} helperText={errors['passport.issuedBy']} disabled={isLoading} /></Grid>
           <Grid xs={12}><TextField fullWidth name="registrationAddress" label="Адрес прописки" value={passport.registrationAddress} onChange={handlePassportChange} error={!!errors['passport.registrationAddress']} helperText={errors['passport.registrationAddress']} disabled={isLoading} /></Grid>
+        </Grid>
+        
+        <Divider sx={{ my: 2 }}><Typography variant="subtitle2">Водительское удостоверение</Typography></Divider>
+        <Grid container spacing={2}>
+            <Grid xs={6} sm={3}><TextField fullWidth name="series" label="Серия ВУ" value={driverLicense.series} onChange={handleDriverLicenseChange} disabled={isLoading} /></Grid>
+            <Grid xs={6} sm={3}><TextField fullWidth name="number" label="Номер ВУ" value={driverLicense.number} onChange={handleDriverLicenseChange} error={!!errors['driverLicense.number']} helperText={errors['driverLicense.number']} disabled={isLoading} /></Grid>
+            <Grid xs={12} sm={6}><TextField fullWidth name="categories" label="Категории ВУ" value={driverLicense.categories} onChange={handleDriverLicenseChange} disabled={isLoading} /></Grid>
+            <Grid xs={12} sm={6}><DatePicker label="Дата выдачи ВУ" value={driverLicense.issueDate} onChange={createDateChangeHandler(setDriverLicense, 'issueDate')} sx={{ width: '100%' }} disabled={isLoading} /></Grid>
+            <Grid xs={12} sm={6}><DatePicker label="Срок действия ВУ" value={driverLicense.expiryDate} onChange={createDateChangeHandler(setDriverLicense, 'expiryDate')} sx={{ width: '100%' }} disabled={isLoading} /></Grid>
+        </Grid>
+
+        <Divider sx={{ my: 2 }}><Typography variant="subtitle2">Договор аренды</Typography></Divider>
+        <Grid container spacing={2}>
+            <Grid xs={12} sm={6}><TextField fullWidth name="number" label="Номер договора" value={leaseAgreement.number} onChange={handleLeaseAgreementChange} error={!!errors['leaseAgreement.number']} helperText={errors['leaseAgreement.number']} disabled={isLoading} /></Grid>
+            <Grid xs={12} sm={6}><DatePicker label="Дата договора" value={leaseAgreement.date} onChange={createDateChangeHandler(setLeaseAgreement, 'date')} sx={{ width: '100%' }} disabled={isLoading} /></Grid>
         </Grid>
 
         {/* --- Данные по автомобилю --- */}

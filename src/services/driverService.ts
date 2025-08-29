@@ -4,15 +4,15 @@ import { knexInstance as db } from '../database/knex.js';
 import type { Driver, NewDriver } from '../models/Driver.js';
 
 // ... (mapDbRowToDriver и mapDriverToDbRow без изменений)
-const mapDbRowToDriver = (row: any): Driver => {
-  if (!row) return row;
+const mapDbRowToDriver = (row: any): Driver | null => {
+  if (!row) return null;
   return {
     id: row.id,
-    personalData: typeof row.personalData === 'string' ? JSON.parse(row.personalData) : row.personalData,
-    passport: typeof row.passport === 'string' ? JSON.parse(row.passport) : row.passport,
-    vehicle: typeof row.vehicle === 'string' ? JSON.parse(row.vehicle) : row.vehicle,
-    driverLicense: row.driverLicense ? (typeof row.driverLicense === 'string' ? JSON.parse(row.driverLicense) : row.driverLicense) : undefined,
-    leaseAgreement: row.leaseAgreement ? (typeof row.leaseAgreement === 'string' ? JSON.parse(row.leaseAgreement) : row.leaseAgreement) : undefined,
+    personalData: typeof row.personalData === 'string' ? JSON.parse(row.personalData) : (row.personalData || {}),
+    passport: typeof row.passport === 'string' ? JSON.parse(row.passport) : (row.passport || {}),
+    vehicle: typeof row.vehicle === 'string' ? JSON.parse(row.vehicle) : (row.vehicle || {}),
+    driverLicense: row.driverLicense ? (typeof row.driverLicense === 'string' ? JSON.parse(row.driverLicense) : row.driverLicense) : {},
+    leaseAgreement: row.leaseAgreement ? (typeof row.leaseAgreement === 'string' ? JSON.parse(row.leaseAgreement) : row.leaseAgreement) : {},
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
   };
@@ -50,6 +50,9 @@ export class DriverService {
 
   public async findDriverById(id: number): Promise<Driver | null> {
     const row = await db('drivers').where({ id }).first();
+    if (!row) {
+      return null;
+    }
     return mapDbRowToDriver(row);
   }
 
@@ -70,6 +73,11 @@ export class DriverService {
 
   // ... (updateDriver, deleteDriver без изменений)
   public async updateDriver(id: number, data: Partial<NewDriver>): Promise<Driver | null> {
+    // Удаляем системные поля из объекта, чтобы их нельзя было обновить вручную
+    delete (data as any).createdAt;
+    delete (data as any).updatedAt;
+    delete (data as any).id; // Также удаляем ID, его нельзя менять
+
     const flatData = mapDriverToDbRow(data);
     const [updatedDriverRow] = await db('drivers')
       .where({ id })
