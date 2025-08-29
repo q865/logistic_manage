@@ -1,7 +1,7 @@
 // src/models/Driver.ts
 
 // Личные данные
-interface PersonalData {
+export interface PersonalData {
   lastName: string;          // Фамилия
   firstName: string;         // Имя
   patronymic?: string;       // Отчество (не у всех есть)
@@ -9,7 +9,7 @@ interface PersonalData {
 }
 
 // Паспортные данные
-interface Passport {
+export interface Passport {
   series: string;            // Серия
   number: string;            // Номер
   issuedBy: string;          // Кем выдан
@@ -19,7 +19,7 @@ interface Passport {
 }
 
 // Данные по автомобилю
-interface Vehicle {
+export interface Vehicle {
   make: string;              // Марка
   model: string;             // Модель
   licensePlate: string;      // Регистрационный знак
@@ -34,11 +34,32 @@ interface Vehicle {
   stsIssueInfo: string;      // СТС: когда и кем выдан
 }
 
+// Водительское удостоверение
+export interface DriverLicense {
+  series?: string;           // Серия ВУ
+  number?: string;           // Номер ВУ
+  issueDate?: Date;          // Дата выдачи
+  expiryDate?: Date;         // Срок действия
+  categories?: string;       // Категории
+}
+
+// Договор аренды
+export interface LeaseAgreement {
+  number?: string;           // Номер договора
+  date?: Date;               // Дата заключения
+}
+
 // Полная карточка водителя
 export interface Driver {
   id: number;                // Уникальный ID в базе
   personalData: PersonalData;
   passport: Passport;
   vehicle: Vehicle;
+  driverLicense?: DriverLicense;
+  leaseAgreement?: LeaseAgreement;
   createdAt: Date;           // Дата создания записи
+  updatedAt: Date;           // Дата обновления записи
 }
+
+// Тип для создания нового водителя (без id и дат)
+export type NewDriver = Omit<Driver, 'id' | 'createdAt' | 'updatedAt'>;

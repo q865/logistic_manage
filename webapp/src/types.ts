@@ -31,3 +31,11 @@ export interface Vehicle {
   stsNumber: string;
   stsIssueInfo: string;
 }
+
+export interface DriverLicense {
+  number: string;
+}
+
+export interface LeaseAgreement {
+  number: string;
+}

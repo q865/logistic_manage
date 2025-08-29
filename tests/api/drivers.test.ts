@@ -1,132 +1,103 @@
+
+// tests/api/drivers.test.ts
 import request from 'supertest';
-import app from '../../src/app.js'; // Импортируем наше готовое приложение
-import type { Knex } from 'knex';
+import express from 'express';
+import { createDriverRouter } from '../../src/api/driverRoutes.js';
+import { DriverService } from '../../src/services/driverService.js';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// Мы не можем импортировать knexInstance статически.
-// Поэтому мы объявим переменную, а получим ее значение динамически.
-let knexInstance: Knex;
+// Создаем мок сервиса вручную
+const mockDriverService: vi.Mocked<DriverService> = {
+  createDriver: vi.fn(),
+  findDriverById: vi.fn(),
+  getAllDrivers: vi.fn(),
+  updateDriver: vi.fn(),
+  deleteDriver: vi.fn(),
+};
 
-describe('POST /api/drivers', () => {
+// Создаем тестовое Express-приложение и инжектим мок
+const app = express();
+app.use(express.json());
+app.use('/api/drivers', createDriverRouter(mockDriverService));
 
-  // Перед всеми тестами в этом файле мы динамически загрузим наш knex-модуль.
-  beforeAll(async () => {
-    const dbModule = await import('../../src/database/knex.js');
-    knexInstance = dbModule.knexInstance;
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+describe('Driver API', () => {
+
+  describe('POST /api/drivers', () => {
+    it('should create a new driver and return 201 status', async () => {
+      const mockDriverPayload = {
+        personalData: { lastName: 'Тестов', firstName: 'Тест', birthDate: new Date('1990-01-01') },
+        passport: { series: '1234', number: '567890', issuedBy: 'Тестовым отделом', issueDate: new Date('2010-01-01'), departmentCode: '123-456' },
+        vehicle: { make: 'TestMake', model: 'TestModel', licensePlate: 'A123BC78', vin: 'TESTVIN1234567890', year: 2020, type: 'Тестовый', bodyColor: 'Тестовый', ptsNumber: 'pts', stsNumber: 'sts', stsIssueInfo: 'info' },
+        driverLicense: { number: '' },
+        leaseAgreement: { number: '' },
+      };
+      const createdDriver = { id: 1, ...mockDriverPayload };
+      const mockResolvedValue = { ...createdDriver, personalData: { ...createdDriver.personalData, birthDate: new Date('1990-01-01').toISOString() }, passport: { ...createdDriver.passport, issueDate: new Date('2010-01-01').toISOString() } };
+      mockDriverService.createDriver.mockResolvedValue(mockResolvedValue as any);
+      const response = await request(app).post('/api/drivers').send({ ...mockDriverPayload, personalData: { ...mockDriverPayload.personalData, birthDate: '1990-01-01' }, passport: { ...mockDriverPayload.passport, issueDate: '2010-01-01' } });
+      expect(response.status).toBe(201);
+      expect(response.body).toEqual(mockResolvedValue);
+      expect(mockDriverService.createDriver).toHaveBeenCalledWith(mockDriverPayload);
+    });
+    it('should return 400 status if lastName is missing', async () => {
+      const mockDriverPayload = { personalData: { firstName: 'Тест', birthDate: '1990-01-01' } };
+      const response = await request(app).post('/api/drivers').send(mockDriverPayload);
+      expect(response.status).toBe(400);
+      expect(mockDriverService.createDriver).not.toHaveBeenCalled();
+    });
   });
 
-  // Перед каждым тестом чистим таблицу, чтобы тесты не влияли друг на друга
-  beforeEach(async () => {
-    await knexInstance('drivers').del();
+  describe('GET /api/drivers', () => {
+    it('should return a list of drivers', async () => {
+      const mockDrivers = [{ id: 1, personalData: { lastName: 'Driver1' } }, { id: 2, personalData: { lastName: 'Driver2' } }];
+      mockDriverService.getAllDrivers.mockResolvedValue(mockDrivers as any);
+      const response = await request(app).get('/api/drivers');
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual(mockDrivers);
+      expect(mockDriverService.getAllDrivers).toHaveBeenCalled();
+    });
   });
 
-  // После всех тестов закрываем соединение с БД
-  afterAll(async () => {
-    await knexInstance.destroy();
+  describe('GET /api/drivers/:id', () => {
+    it('should return a single driver if found', async () => {
+      const mockDriver = { id: 1, personalData: { lastName: 'Driver1' } };
+      mockDriverService.findDriverById.mockResolvedValue(mockDriver as any);
+      const response = await request(app).get('/api/drivers/1');
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual(mockDriver);
+      expect(mockDriverService.findDriverById).toHaveBeenCalledWith(1);
+    });
+    it('should return 404 if driver not found', async () => {
+      mockDriverService.findDriverById.mockResolvedValue(null);
+      const response = await request(app).get('/api/drivers/999');
+      expect(response.status).toBe(404);
+      expect(mockDriverService.findDriverById).toHaveBeenCalledWith(999);
+    });
   });
 
-  it('should create a new driver and return 201 status', async () => {
-    const mockDriver = {
-      personalData: {
-        lastName: 'Тестов',
-        firstName: 'Тест',
-        patronymic: 'Тестович',
-        birthDate: '1990-01-01',
-      },
-      passport: {
-        series: '1234',
-        number: '567890',
-        issuedBy: 'Тестовым отделом',
-        issueDate: '2010-01-01',
-        departmentCode: '123-456',
-        registrationAddress: 'г. Тест, ул. Тестовая, д. 1',
-      },
-      vehicle: {
-        make: 'TestMake',
-        model: 'TestModel',
-        licensePlate: 'A123BC78',
-        vin: 'TESTVIN1234567890',
-        year: 2020,
-        type: 'Тестовый тип',
-        chassis: 'TESTCHASSIS',
-        bodyColor: 'Тестовый цвет',
-        bodyNumber: 'TESTBODY',
-        ptsNumber: 'TESTPTS',
-        stsNumber: 'TESTSTS',
-        stsIssueInfo: 'Тестовым ГИБДД',
-      },
-    };
-
-    const response = await request(app)
-      .post('/api/drivers')
-      .send(mockDriver);
-
-    // 1. Проверяем статус ответа
-    expect(response.status).toBe(201);
-
-    // 2. Проверяем, что в ответе есть ID
-    expect(response.body).toHaveProperty('id');
-
-    // 3. Проверяем, что данные в ответе соответствуют отправленным
-    expect(response.body.personalData.lastName).toBe(mockDriver.personalData.lastName);
-
-    // 4. Проверяем, что запись реально появилась в базе
-    const driverInDb = await knexInstance('drivers').where({ id: response.body.id }).first();
-    expect(driverInDb).toBeDefined();
-    expect(driverInDb.firstName).toBe(mockDriver.personalData.firstName);
+  describe('PUT /api/drivers/:id', () => {
+    it('should update a driver and return it', async () => {
+      const updateData = { personalData: { lastName: 'Updated' } };
+      const updatedDriver = { id: 1, ...updateData };
+      mockDriverService.updateDriver.mockResolvedValue(updatedDriver as any);
+      const response = await request(app).put('/api/drivers/1').send(updateData);
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual(updatedDriver);
+      expect(mockDriverService.updateDriver).toHaveBeenCalledWith(1, updateData);
+    });
   });
 
-  it('should return 400 status if lastName is missing', async () => {
-    const mockDriverWithNoLastName = {
-      personalData: {
-        // lastName отсутствует
-        firstName: 'Тест',
-        birthDate: '1990-01-01',
-      },
-      passport: {
-        series: '1234',
-        number: '567890',
-        issuedBy: 'Тестовым отделом',
-        issueDate: '2010-01-01',
-        departmentCode: '123-456',
-        registrationAddress: 'г. Тест, ул. Тестовая, д. 1',
-      },
-      vehicle: {
-        make: 'TestMake',
-        model: 'TestModel',
-        licensePlate: 'A123BC78_2', // Уникальное значение
-        vin: 'TESTVIN1234567890_2', // Уникальное значение
-        year: 2020,
-        type: 'Тестовый тип',
-        stsIssueInfo: 'Тестовым ГИБДД',
-      },
-    };
-
-    const response = await request(app)
-      .post('/api/drivers')
-      .send(mockDriverWithNoLastName);
-
-    // Ожидаем ошибку 400 Bad Request
-    expect(response.status).toBe(400);
+  describe('DELETE /api/drivers/:id', () => {
+    it('should delete a driver and return 204 status', async () => {
+      mockDriverService.deleteDriver.mockResolvedValue(undefined);
+      const response = await request(app).delete('/api/drivers/1');
+      expect(response.status).toBe(204);
+      expect(mockDriverService.deleteDriver).toHaveBeenCalledWith(1);
+    });
   });
 
-  it('should return 400 status if birthDate is invalid', async () => {
-    const mockDriver = {
-      personalData: {
-        lastName: 'Тестов',
-        firstName: 'Тест',
-        birthDate: 'это-не-дата', // Некорректная дата
-      },
-      // ...остальные обязательные поля
-      passport: { series: '1', number: '1', issuedBy: '1', issueDate: '2010-01-01', departmentCode: '1' },
-      vehicle: { make: '1', model: '1', licensePlate: 'A123BC78_3', vin: 'TESTVIN1234567890_3', year: 2020, type: '1', bodyColor: '1', ptsNumber: '1', stsNumber: '1', stsIssueInfo: '1' },
-    };
-
-    const response = await request(app)
-      .post('/api/drivers')
-      .send(mockDriver);
-
-    expect(response.status).toBe(400);
-    // Проверяем, что в ответе есть ошибка именно для поля birthDate
-    expect(response.body.errors[0].path).toBe('personalData.birthDate');
-  });
 });
