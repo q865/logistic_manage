@@ -2,7 +2,9 @@
 import express from 'express';
 import cors from 'cors';
 import { createDriverRouter } from './api/driverRoutes.js';
+import { createScheduleRouter } from './api/scheduleRoutes.js';
 import { DriverService } from './services/driverService.js';
+import { ScheduleService } from './services/scheduleService.js';
 import { notificationService } from './services/notificationService.js';
 
 console.log(`[${new Date().toISOString()}] Express App Loading...`);
@@ -22,13 +24,17 @@ app.use(cors(corsOptions));
 app.use(express.json());
 
 // --- ИНЪЕКЦИЯ ЗАВИСИМОСТЕЙ ---
-// Создаем единственный экземпляр сервиса
+// Создаем единственные экземпляры сервисов
 const driverService = new DriverService();
-// Создаем роутер и передаем ему сервис
-const driverRoutes = createDriverRouter(driverService);
+const scheduleService = new ScheduleService();
 
-// Подключаем роуты для водителей
+// Создаем роутеры и передаем им сервисы
+const driverRoutes = createDriverRouter(driverService);
+const scheduleRoutes = createScheduleRouter(scheduleService);
+
+// Подключаем роуты
 app.use('/api/drivers', driverRoutes);
+app.use('/api/schedules', scheduleRoutes);
 
 // --- ВЕБ-ХУК ДЛЯ УВЕДОМЛЕНИЙ ---
 app.post('/api/webhook/driver-created', async (req, res) => {

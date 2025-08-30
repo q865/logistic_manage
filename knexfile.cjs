@@ -1,6 +1,32 @@
 // knexfile.cjs
-// Используем асинхронный импорт, чтобы загрузить ESM-конфиг из CJS-файла.
-module.exports = (async () => {
-  const { config } = await import('./src/knexfile.ts');
-  return config;
-})();
+const path = require('path');
+
+module.exports = {
+  development: {
+    client: 'sqlite3',
+    connection: {
+      filename: './drivers.db'
+    },
+    useNullAsDefault: true,
+    migrations: {
+      directory: './src/database/migrations'
+    },
+    seeds: {
+      directory: './src/database/seeds'
+    }
+  },
+  
+  test: {
+    client: 'sqlite3',
+    connection: {
+      filename: ':memory:'
+    },
+    useNullAsDefault: true,
+    migrations: {
+      directory: './src/database/migrations'
+    },
+    seeds: {
+      directory: './src/database/seeds'
+    }
+  }
+};

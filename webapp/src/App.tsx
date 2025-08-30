@@ -12,8 +12,9 @@ import '@fontsource/roboto/700.css';
 import { DriverForm } from './components/DriverForm.js';
 import { DriverList } from './components/DriverList.js';
 import { DriverEditForm } from './components/DriverEditForm.js';
+import { ScheduleCalendar } from './components/ScheduleCalendar.js';
 
-type View = 'list' | 'create' | 'edit';
+type View = 'list' | 'create' | 'edit' | 'schedule';
 
 function App() {
   const [view, setView] = useState<View>('list');
@@ -44,12 +45,14 @@ function App() {
           <Tabs value={view} onChange={(e, newValue) => setView(newValue)}>
             <Tab label="Список водителей" value="list" />
             <Tab label="Создать водителя" value="create" />
+            <Tab label="График работы" value="schedule" />
             {view === 'edit' && <Tab label={`Редактирование ID: ${editingDriverId}`} value="edit" />}
           </Tabs>
         </Box>
 
         {view === 'list' && <DriverList key={driverListKey} onEdit={handleEdit} />}
         {view === 'create' && <DriverForm onDriverCreated={handleDriverCreated} />}
+        {view === 'schedule' && <ScheduleCalendar onScheduleChange={handleShowList} />}
         {view === 'edit' && editingDriverId && (
           <DriverEditForm 
             driverId={editingDriverId} 

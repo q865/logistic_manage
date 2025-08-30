@@ -1,63 +1,5 @@
-// webapp/src/types.ts
+// src/models/Schedule.ts
 
-import type { Dayjs } from 'dayjs';
-
-export interface PersonalData {
-  lastName: string;
-  firstName: string;
-  patronymic?: string;
-  birthDate: Dayjs | null;
-}
-
-export interface Passport {
-  series: string;
-  number: string;
-  issuedBy: string;
-  issueDate: Dayjs | null;
-  departmentCode: string;
-  registrationAddress?: string;
-}
-
-export interface Vehicle {
-  make: string;
-  model: string;
-  licensePlate: string;
-  vin: string;
-  year: string; // Используем строку для инпута, преобразуем в число при отправке
-  type: string;
-  chassis?: string;
-  bodyColor: string;
-  bodyNumber?: string;
-  ptsNumber: string;
-  stsNumber: string;
-  stsIssueInfo: string;
-}
-
-export interface DriverLicense {
-  series?: string;
-  number?: string;
-  issueDate?: Dayjs | null;
-  expiryDate?: Dayjs | null;
-  categories?: string;
-}
-
-export interface LeaseAgreement {
-  number?: string;
-  date?: Dayjs | null;
-}
-
-export interface Driver {
-  id: number;
-  personalData: PersonalData;
-  passport: Passport;
-  vehicle: Vehicle;
-  driverLicense?: DriverLicense;
-  leaseAgreement?: LeaseAgreement;
-  createdAt: string; // Даты приходят как строки ISO
-  updatedAt: string;
-}
-
-// Типы для графиков
 export type ScheduleStatus = 'working' | 'off' | 'repair' | 'reserve' | 'vacation' | 'loading';
 
 export interface Schedule {
@@ -74,6 +16,34 @@ export interface Schedule {
   updated_at: string;
 }
 
+export interface CreateScheduleRequest {
+  driver_id: number;
+  date: string;
+  start_time: string;
+  end_time: string;
+  status: ScheduleStatus;
+  route_info?: string;
+  notes?: string;
+}
+
+export interface UpdateScheduleRequest {
+  date?: string;
+  start_time?: string;
+  end_time?: string;
+  status?: ScheduleStatus;
+  route_info?: string;
+  notes?: string;
+}
+
+export interface ScheduleFilters {
+  driver_id?: number;
+  date_from?: string;
+  date_to?: string;
+  status?: ScheduleStatus;
+  page?: number;
+  limit?: number;
+}
+
 export interface ScheduleWithDriver extends Schedule {
   driver: {
     id: number;
@@ -88,24 +58,6 @@ export interface ScheduleWithDriver extends Schedule {
       licensePlate: string;
     };
   };
-}
-
-export interface CalendarDay {
-  date: string;
-  schedules: ScheduleWithDriver[];
-  isToday: boolean;
-  isWeekend: boolean;
-}
-
-export interface CalendarWeek {
-  weekNumber: number;
-  days: CalendarDay[];
-}
-
-export interface CalendarMonth {
-  year: number;
-  month: number;
-  weeks: CalendarWeek[];
 }
 
 // Статусы с русскими названиями и цветами
@@ -147,3 +99,22 @@ export const SCHEDULE_STATUSES = {
     description: 'Время погрузки/разгрузки'
   }
 } as const;
+
+// Интерфейс для календарного представления
+export interface CalendarDay {
+  date: string;
+  schedules: ScheduleWithDriver[];
+  isToday: boolean;
+  isWeekend: boolean;
+}
+
+export interface CalendarWeek {
+  weekNumber: number;
+  days: CalendarDay[];
+}
+
+export interface CalendarMonth {
+  year: number;
+  month: number;
+  weeks: CalendarWeek[];
+}
