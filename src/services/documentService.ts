@@ -1,3 +1,6 @@
+
+
+
 // src/services/documentService.ts
 import fs from 'fs/promises';
 import path from 'path';
@@ -122,6 +125,15 @@ function flattenDriverData(driver: Driver): Record<string, any> {
   data.driver_id = driver.id;
   data.current_date = format(new Date(), 'dd.MM.yyyy');
   data.fullname = `${data.lastname || ''} ${data.firstname || ''} ${data.patronymic || ''}`.trim();
+  
+  // НОВАЯ ПЕРЕМЕННАЯ: Фамилия с инициалами (например, "Панин С.А.")
+  const firstNameInitial = data.firstname ? data.firstname.charAt(0) + '.' : '';
+  const patronymicInitial = data.patronymic ? data.patronymic.charAt(0) + '.' : '';
+  data['lastname_with_initials'] = `${data.lastname || ''} ${firstNameInitial}${patronymicInitial}`.trim();
+  data['ФИО_с_инициалами'] = data['lastname_with_initials'];
+  data['ФИО с инициалами'] = data['lastname_with_initials'];
+  data['фамилия_инициалы'] = data['lastname_with_initials'];
+  data['фамилия инициалы'] = data['lastname_with_initials'];
 
   // КРИТИЧЕСКИ ВАЖНО: Добавляем поля для дат с пробелами в конце (как в шаблоне)
   data['lease_agreement_date '] = driver.leaseAgreement?.date ? format(new Date(driver.leaseAgreement.date), 'dd.MM.yyyy') : '';

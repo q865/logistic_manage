@@ -75,6 +75,7 @@ export function DriverEditForm({ driverId, onUpdateSuccess, onCancel }: DriverEd
       ...formData,
       personalData: { ...formData.personalData, birthDate: formData.personalData?.birthDate?.format('YYYY-MM-DD') },
       passport: { ...formData.passport, issueDate: formData.passport?.issueDate?.format('YYYY-MM-DD') },
+      leaseAgreement: { ...formData.leaseAgreement, date: formData.leaseAgreement?.date ? dayjs(formData.leaseAgreement.date).format('YYYY-MM-DD') : null },
       vehicle: { ...formData.vehicle, year: parseInt(formData.vehicle?.year, 10) || 0 },
     };
     
@@ -129,7 +130,12 @@ export function DriverEditForm({ driverId, onUpdateSuccess, onCancel }: DriverEd
 
         {/* --- Документы и т.д. (аналогично форме создания) --- */}
         <Typography variant="h6" gutterBottom sx={{ mt: 4 }}>2. Документы</Typography>
+
+
+
         <Box display="flex" flexWrap="wrap" gap={2}>
+        
+
           <Box flex="1 1 calc(50% - 16px)" minWidth={200}><TextField fullWidth name="number" label="Номер ВУ" value={formData.driverLicense?.number || ''} onChange={createChangeHandler('driverLicense')} error={!!errors['driverLicense.number']} helperText={errors['driverLicense.number']} disabled={isLoading} /></Box>
           <Box flex="1 1 calc(50% - 16px)" minWidth={200}><TextField fullWidth name="number" label="Номер договора аренды" value={formData.leaseAgreement?.number || ''} onChange={createChangeHandler('leaseAgreement')} error={!!errors['leaseAgreement.number']} helperText={errors['leaseAgreement.number']} disabled={isLoading} /></Box>
           <Box flex="1 1 calc(25% - 16px)" minWidth={150}><TextField required fullWidth name="series" label="Серия паспорта" value={formData.passport?.series || ''} onChange={createChangeHandler('passport')} error={!!errors['passport.series']} helperText={errors['passport.series']} disabled={isLoading} /></Box>
