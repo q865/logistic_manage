@@ -115,7 +115,24 @@ export function DriverList({ onEdit }: DriverListProps) {
   };
 
   const handleDownloadAgreement = async (driverId: number, driverLastName: string) => {
-    // ... (логика скачивания без изменений)
+    try {
+      const response = await axios.get(`${API_URL}/${driverId}/documents/lease_agreement`, {
+        responseType: 'blob',
+      });
+      
+      // Создаем ссылку для скачивания
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `lease_agreement_${driverLastName}_${driverId}.docx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Ошибка скачивания договора:', err);
+      alert('Не удалось скачать договор аренды');
+    }
   };
 
   // Обработчики для пагинации

@@ -100,12 +100,14 @@ export class ScheduleService {
 
     // Получаем общее количество
     const countQuery = query.clone();
-    const [{ count }] = await countQuery.count('* as count');
-    const total = Number(count);
+    const countResult = await countQuery.count('* as count');
+    const total = Number(countResult[0]?.count || 0);
 
     // Применяем пагинацию
-    const offset = (page - 1) * limit;
-    const schedules = await query.offset(offset).limit(limit);
+    const safePage = page || 1;
+    const safeLimit = limit || 50;
+    const offset = (safePage - 1) * safeLimit;
+    const schedules = await query.offset(offset).limit(safeLimit);
 
     return {
       schedules: schedules.map(schedule => ({
@@ -159,7 +161,7 @@ export class ScheduleService {
         'd.vehicle'
       )
       .join('drivers as d', 's.driver_id', 'd.id')
-      .whereBetween('s.date', [startDate.toISOString().split('T')[0], endDate.toISOString().split('T')[0]])
+      .whereBetween('s.date', [startDate.toISOString().split('T')[0]!, endDate.toISOString().split('T')[0]!])
       .orderBy('s.date', 'asc')
       .orderBy('s.start_time', 'asc');
 
@@ -198,7 +200,7 @@ export class ScheduleService {
       const week: CalendarDay[] = [];
       
       for (let i = 0; i < 7; i++) {
-        const dateStr = currentDate.toISOString().split('T')[0];
+        const dateStr = currentDate.toISOString().split('T')[0]!;
         const isToday = dateStr === today;
         const isWeekend = currentDate.getDay() === 0 || currentDate.getDay() === 6;
         
@@ -253,8 +255,11 @@ export class ScheduleService {
     const sourceEnd = new Date(sourceStart);
     sourceEnd.setDate(sourceStart.getDate() + 6);
     
+    const sourceStartStr = sourceStart.toISOString().split('T')[0]!;
+    const sourceEndStr = sourceEnd.toISOString().split('T')[0]!;
+    
     let query = knexInstance('schedules')
-      .whereBetween('date', [sourceStart.toISOString().split('T')[0], sourceEnd.toISOString().split('T')[0]]);
+      .whereBetween('date', [sourceStartStr, sourceEndStr]);
     
     if (driverIds && driverIds.length > 0) {
       query = query.whereIn('driver_id', driverIds);
@@ -269,9 +274,11 @@ export class ScheduleService {
       const newDate = new Date(scheduleDate);
       newDate.setDate(scheduleDate.getDate() + daysDiff);
       
+      const newDateStr = newDate.toISOString().split('T')[0]!;
+      
       return {
         driver_id: schedule.driver_id,
-        date: newDate.toISOString().split('T')[0],
+        date: newDateStr,
         start_time: schedule.start_time,
         end_time: schedule.end_time,
         status: schedule.status,

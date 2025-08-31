@@ -1,0 +1,21 @@
+# Это простой текстовый файл для тестирования
+# В реальности это должен быть .docx файл
+
+Договор аренды транспортного средства
+
+Водитель: {personalData_lastName} {personalData_firstName} {personalData_patronymic}
+
+Данные автомобиля:
+- Марка, модель: {vehicle_make} {vehicle_model}
+- Рег. знак: {vehicle_licensePlate}
+- VIN: {vehicle_vin}
+- Год: {vehicle_year}
+- Тип: {vehicle_type}
+- Шасси: {vehicle_chassis}
+- Цвет: {vehicle_bodyColor}
+- Кузов №: {vehicle_bodyNumber}
+- ПТС: {vehicle_ptsNumber}
+- СТС: {vehicle_stsNumber}
+- СТС выдано: {vehicle_stsIssueInfo}
+
+Дата: {current_date}

@@ -1,6 +1,5 @@
-// src/database/migrations/20250101000000_create_schedules.ts
-import pkg from 'knex';
-const { Knex } = pkg;
+// src/database/migrations/20250101000001_create_schedules.ts
+import type { Knex } from 'knex';
 
 export async function up(knex: Knex): Promise<void> {
   return knex.schema.createTable('schedules', (table) => {

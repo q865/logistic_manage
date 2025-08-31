@@ -1,14 +1,15 @@
 // src/api/scheduleRoutes.ts
 import { Router } from 'express';
+import type { Request, Response } from 'express';
 import { body, query, param, validationResult } from 'express-validator';
 import { ScheduleService } from '../services/scheduleService.js';
-import type { ScheduleStatus } from '../models/Schedule.js';
+import type { ScheduleStatus, ScheduleFilters } from '../models/Schedule.js';
 
 export function createScheduleRouter(scheduleService: ScheduleService) {
   const router = Router();
 
   // Валидация для создания графика
-  const createScheduleValidation = [
+  const createScheduleValidation: any[] = [
     body('driver_id').isInt({ min: 1 }).withMessage('ID водителя должен быть положительным числом'),
     body('date').isISO8601().withMessage('Дата должна быть в формате YYYY-MM-DD'),
     body('start_time').matches(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/).withMessage('Время начала должно быть в формате HH:MM'),
@@ -19,7 +20,7 @@ export function createScheduleRouter(scheduleService: ScheduleService) {
   ];
 
   // Валидация для обновления графика
-  const updateScheduleValidation = [
+  const updateScheduleValidation: any[] = [
     param('id').isInt({ min: 1 }).withMessage('ID графика должен быть положительным числом'),
     body('date').optional().isISO8601().withMessage('Дата должна быть в формате YYYY-MM-DD'),
     body('start_time').optional().matches(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/).withMessage('Время начала должно быть в формате HH:MM'),
@@ -30,7 +31,7 @@ export function createScheduleRouter(scheduleService: ScheduleService) {
   ];
 
   // Валидация для фильтров
-  const scheduleFiltersValidation = [
+  const scheduleFiltersValidation: any[] = [
     query('driver_id').optional().isInt({ min: 1 }).withMessage('ID водителя должен быть положительным числом'),
     query('date_from').optional().isISO8601().withMessage('Дата начала должна быть в формате YYYY-MM-DD'),
     query('date_to').optional().isISO8601().withMessage('Дата окончания должна быть в формате YYYY-MM-DD'),
@@ -40,7 +41,7 @@ export function createScheduleRouter(scheduleService: ScheduleService) {
   ];
 
   // Создание графика
-  router.post('/', createScheduleValidation, async (req, res) => {
+  router.post('/', createScheduleValidation, async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ 
@@ -67,7 +68,7 @@ export function createScheduleRouter(scheduleService: ScheduleService) {
   // Получение графика по ID
   router.get('/:id', [
     param('id').isInt({ min: 1 }).withMessage('ID графика должен быть положительным числом')
-  ], async (req, res) => {
+  ], async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ 
@@ -77,6 +78,12 @@ export function createScheduleRouter(scheduleService: ScheduleService) {
     }
 
     try {
+      if (!req.params.id) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'ID графика не указан' 
+        });
+      }
       const schedule = await scheduleService.getScheduleById(parseInt(req.params.id));
       
       if (!schedule) {
@@ -100,7 +107,7 @@ export function createScheduleRouter(scheduleService: ScheduleService) {
   });
 
   // Получение списка графиков с фильтрами
-  router.get('/', scheduleFiltersValidation, async (req, res) => {
+  router.get('/', scheduleFiltersValidation, async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ 
@@ -110,7 +117,7 @@ export function createScheduleRouter(scheduleService: ScheduleService) {
     }
 
     try {
-      const filters = {
+      const filters: ScheduleFilters = {
         driver_id: req.query.driver_id ? parseInt(req.query.driver_id as string) : undefined,
         date_from: req.query.date_from as string,
         date_to: req.query.date_to as string,
@@ -119,16 +126,21 @@ export function createScheduleRouter(scheduleService: ScheduleService) {
         limit: req.query.limit ? parseInt(req.query.limit as string) : 50
       };
 
+      // Убираем undefined значения для совместимости с типом
+      if (filters.driver_id === undefined) {
+        delete (filters as any).driver_id;
+      }
+
       const result = await scheduleService.getSchedules(filters);
       
       res.json({ 
         success: true, 
         data: result.schedules,
         pagination: {
-          page: filters.page,
-          limit: filters.limit,
+          page: filters.page || 1,
+          limit: filters.limit || 50,
           total: result.total,
-          totalPages: Math.ceil(result.total / filters.limit)
+          totalPages: Math.ceil(result.total / (filters.limit || 50))
         }
       });
     } catch (error: any) {
@@ -141,7 +153,7 @@ export function createScheduleRouter(scheduleService: ScheduleService) {
   });
 
   // Обновление графика
-  router.put('/:id', updateScheduleValidation, async (req, res) => {
+  router.put('/:id', updateScheduleValidation, async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ 
@@ -151,6 +163,12 @@ export function createScheduleRouter(scheduleService: ScheduleService) {
     }
 
     try {
+      if (!req.params.id) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'ID графика не указан' 
+        });
+      }
       const schedule = await scheduleService.updateSchedule(parseInt(req.params.id), req.body);
       res.json({ 
         success: true, 
@@ -175,7 +193,7 @@ export function createScheduleRouter(scheduleService: ScheduleService) {
   // Удаление графика
   router.delete('/:id', [
     param('id').isInt({ min: 1 }).withMessage('ID графика должен быть положительным числом')
-  ], async (req, res) => {
+  ], async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ 
@@ -185,6 +203,12 @@ export function createScheduleRouter(scheduleService: ScheduleService) {
     }
 
     try {
+      if (!req.params.id) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'ID графика не указан' 
+        });
+      }
       await scheduleService.deleteSchedule(parseInt(req.params.id));
       res.json({ 
         success: true, 
@@ -207,7 +231,7 @@ export function createScheduleRouter(scheduleService: ScheduleService) {
   });
 
   // Получение текущих графиков (сейчас работающие водители)
-  router.get('/current/active', async (req, res) => {
+  router.get('/current/active', async (req: Request, res: Response) => {
     try {
       const schedules = await scheduleService.getCurrentSchedules();
       res.json({ 
@@ -227,7 +251,7 @@ export function createScheduleRouter(scheduleService: ScheduleService) {
   router.get('/calendar/:year/:month', [
     param('year').isInt({ min: 2020, max: 2030 }).withMessage('Год должен быть от 2020 до 2030'),
     param('month').isInt({ min: 1, max: 12 }).withMessage('Месяц должен быть от 1 до 12')
-  ], async (req, res) => {
+  ], async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ 
@@ -237,8 +261,14 @@ export function createScheduleRouter(scheduleService: ScheduleService) {
     }
 
     try {
+            if (!req.params.year || !req.params.month) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Год и месяц должны быть указаны' 
+        });
+      }
       const calendar = await scheduleService.getCalendarMonth(
-        parseInt(req.params.year), 
+        parseInt(req.params.year),
         parseInt(req.params.month)
       );
       
@@ -260,7 +290,7 @@ export function createScheduleRouter(scheduleService: ScheduleService) {
     param('driverId').isInt({ min: 1 }).withMessage('ID водителя должен быть положительным числом'),
     query('date_from').isISO8601().withMessage('Дата начала должна быть в формате YYYY-MM-DD'),
     query('date_to').isISO8601().withMessage('Дата окончания должна быть в формате YYYY-MM-DD')
-  ], async (req, res) => {
+  ], async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ 
@@ -270,11 +300,17 @@ export function createScheduleRouter(scheduleService: ScheduleService) {
     }
 
     try {
-      const schedules = await scheduleService.getDriverSchedule(
-        parseInt(req.params.driverId),
-        req.query.date_from as string,
-        req.query.date_to as string
-      );
+              if (!req.params.driverId || !req.query.date_from || !req.query.date_to) {
+          return res.status(400).json({ 
+            success: false, 
+            error: 'ID водителя и даты должны быть указаны' 
+          });
+        }
+        const schedules = await scheduleService.getDriverSchedule(
+          parseInt(req.params.driverId),
+          req.query.date_from as string,
+          req.query.date_to as string
+        );
       
       res.json({ 
         success: true, 
@@ -297,7 +333,7 @@ export function createScheduleRouter(scheduleService: ScheduleService) {
     body('schedules.*.start_time').matches(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/).withMessage('Время начала должно быть в формате HH:MM'),
     body('schedules.*.end_time').matches(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/).withMessage('Время окончания должно быть в формате HH:MM'),
     body('schedules.*.status').isIn(['working', 'off', 'repair', 'reserve', 'vacation', 'loading']).withMessage('Неверный статус')
-  ], async (req, res) => {
+  ], async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ 
@@ -327,7 +363,7 @@ export function createScheduleRouter(scheduleService: ScheduleService) {
     body('target_date').isISO8601().withMessage('Целевая дата должна быть в формате YYYY-MM-DD'),
     body('driver_ids').optional().isArray().withMessage('ID водителей должны быть массивом'),
     body('driver_ids.*').optional().isInt({ min: 1 }).withMessage('ID водителя должен быть положительным числом')
-  ], async (req, res) => {
+  ], async (req: Request, res: Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ 

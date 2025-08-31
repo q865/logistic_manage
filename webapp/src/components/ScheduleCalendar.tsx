@@ -31,8 +31,9 @@ import {
 import { DatePicker, TimePicker } from '@mui/x-date-pickers';
 import dayjs, { Dayjs } from 'dayjs';
 import axios from 'axios';
-import type { CalendarMonth, ScheduleWithDriver, ScheduleStatus } from '../../types.js';
-import { SCHEDULE_STATUSES } from '../../types.js';
+import type { CalendarMonth, ScheduleWithDriver, ScheduleStatus } from '../types.js';
+
+import { SCHEDULE_STATUSES } from '../constants.js';
 
 const API_URL = 'http://localhost:3000/api/schedules';
 
@@ -57,6 +58,7 @@ export function ScheduleCalendar({ onScheduleChange }: ScheduleCalendarProps) {
   const [routeInfo, setRouteInfo] = useState('');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [drivers, setDrivers] = useState<Array<{ id: number; personalData: { firstName: string; lastName: string; patronymic?: string } }>>([]);
 
   // Загрузка календаря
   const loadCalendar = async () => {
@@ -74,9 +76,23 @@ export function ScheduleCalendar({ onScheduleChange }: ScheduleCalendarProps) {
     }
   };
 
+  // Загрузка списка водителей
+  const loadDrivers = async () => {
+    try {
+      const response = await axios.get('http://localhost:3000/api/drivers');
+      setDrivers(response.data.drivers || []);
+    } catch (err) {
+      console.error('Ошибка загрузки водителей:', err);
+    }
+  };
+
   useEffect(() => {
     loadCalendar();
   }, [currentDate]);
+
+  useEffect(() => {
+    loadDrivers();
+  }, []);
 
   // Навигация по месяцам
   const goToPreviousMonth = () => {
@@ -132,10 +148,35 @@ export function ScheduleCalendar({ onScheduleChange }: ScheduleCalendarProps) {
         notes
       };
 
+      let response;
       if (editingSchedule) {
-        await axios.put(`${API_URL}/${editingSchedule.id}`, scheduleData);
+        response = await axios.put(`${API_URL}/${editingSchedule.id}`, scheduleData);
+        
+        // Отправляем webhook для уведомления
+        try {
+          await axios.post('http://localhost:3000/api/webhook/schedule-updated', {
+            scheduleId: editingSchedule.id,
+            driverName: `Водитель ID ${selectedDriver}`,
+            date: selectedDate.format('YYYY-MM-DD'),
+            status
+          });
+        } catch (webhookError) {
+          console.warn('Не удалось отправить webhook уведомления:', webhookError);
+        }
       } else {
-        await axios.post(API_URL, scheduleData);
+        response = await axios.post(API_URL, scheduleData);
+        
+        // Отправляем webhook для уведомления
+        try {
+          await axios.post('http://localhost:3000/api/webhook/schedule-created', {
+            scheduleId: response.data.id,
+            driverName: `Водитель ID ${selectedDriver}`,
+            date: selectedDate.format('YYYY-MM-DD'),
+            status
+          });
+        } catch (webhookError) {
+          console.warn('Не удалось отправить webhook уведомления:', webhookError);
+        }
       }
 
       setDialogOpen(false);
@@ -156,7 +197,30 @@ export function ScheduleCalendar({ onScheduleChange }: ScheduleCalendarProps) {
     }
 
     try {
+      // Получаем информацию о графике перед удалением для webhook
+      let scheduleInfo = null;
+      try {
+        const scheduleResponse = await axios.get(`${API_URL}/${scheduleId}`);
+        scheduleInfo = scheduleResponse.data;
+      } catch (err) {
+        console.warn('Не удалось получить информацию о графике для webhook:', err);
+      }
+
       await axios.delete(`${API_URL}/${scheduleId}`);
+      
+      // Отправляем webhook для уведомления
+      if (scheduleInfo) {
+        try {
+          await axios.post('http://localhost:3000/api/webhook/schedule-deleted', {
+            scheduleId,
+            driverName: `Водитель ID ${scheduleInfo.driver_id}`,
+            date: scheduleInfo.date
+          });
+        } catch (webhookError) {
+          console.warn('Не удалось отправить webhook уведомления:', webhookError);
+        }
+      }
+      
       loadCalendar();
       onScheduleChange?.();
     } catch (err) {
@@ -218,91 +282,91 @@ export function ScheduleCalendar({ onScheduleChange }: ScheduleCalendarProps) {
       {/* Календарь */}
       <Paper elevation={2}>
         {/* Дни недели */}
-        <Grid container>
+        <Box display="flex">
           {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map(day => (
-            <Grid item xs key={day}>
-              <Box
-                p={1}
-                textAlign="center"
-                bgcolor="grey.100"
-                borderBottom={1}
-                borderColor="divider"
-              >
-                <Typography variant="subtitle2" fontWeight="bold">
-                  {day}
-                </Typography>
-              </Box>
-            </Grid>
+            <Box
+              key={day}
+              flex={1}
+              p={1}
+              textAlign="center"
+              bgcolor="grey.100"
+              borderBottom={1}
+              borderColor="divider"
+            >
+              <Typography variant="subtitle2" fontWeight="bold">
+                {day}
+              </Typography>
+            </Box>
           ))}
-        </Grid>
+        </Box>
 
         {/* Дни месяца */}
         {calendar.weeks.map((week, weekIndex) => (
-          <Grid container key={weekIndex}>
+          <Box display="flex" key={weekIndex}>
             {week.days.map((day, dayIndex) => (
-              <Grid item xs key={dayIndex}>
-                <Box
-                  p={1}
-                  minHeight={120}
-                  border={1}
-                  borderColor="divider"
-                  bgcolor={day.isToday ? 'primary.light' : day.isWeekend ? 'grey.50' : 'white'}
-                  position="relative"
+              <Box
+                key={dayIndex}
+                flex={1}
+                p={1}
+                minHeight={120}
+                border={1}
+                borderColor="divider"
+                bgcolor={day.isToday ? 'primary.light' : day.isWeekend ? 'grey.50' : 'white'}
+                position="relative"
+              >
+                {/* Дата */}
+                <Typography
+                  variant="body2"
+                  color={day.isToday ? 'white' : day.isWeekend ? 'error.main' : 'text.primary'}
+                  fontWeight={day.isToday ? 'bold' : 'normal'}
                 >
-                  {/* Дата */}
-                  <Typography
-                    variant="body2"
-                    color={day.isToday ? 'white' : day.isWeekend ? 'error.main' : 'text.primary'}
-                    fontWeight={day.isToday ? 'bold' : 'normal'}
-                  >
-                    {dayjs(day.date).format('D')}
-                  </Typography>
+                  {dayjs(day.date).format('D')}
+                </Typography>
 
-                  {/* Графики */}
-                  <Box mt={1}>
-                    {day.schedules.map((schedule, index) => (
-                      <Tooltip
-                        key={schedule.id}
-                        title={`${schedule.driver.personalData.lastName} ${schedule.driver.personalData.firstName} - ${schedule.start_time}-${schedule.end_time}`}
-                      >
-                        <Chip
-                          label={`${schedule.driver.personalData.lastName} ${schedule.start_time}`}
-                          size="small"
-                          sx={{
-                            mb: 0.5,
-                            backgroundColor: getStatusColor(schedule.status),
-                            color: 'white',
-                            fontSize: '0.7rem',
-                            maxWidth: '100%',
-                            '& .MuiChip-label': {
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis'
-                            }
-                          }}
-                          onClick={() => handleEditSchedule(schedule)}
-                        />
-                      </Tooltip>
-                    ))}
-                  </Box>
-
-                  {/* Кнопка добавления */}
-                  <IconButton
-                    size="small"
-                    sx={{
-                      position: 'absolute',
-                      bottom: 2,
-                      right: 2,
-                      opacity: 0.7,
-                      '&:hover': { opacity: 1 }
-                    }}
-                    onClick={() => handleCreateSchedule(day.date)}
-                  >
-                    <AddIcon fontSize="small" />
-                  </IconButton>
+                {/* Графики */}
+                <Box mt={1}>
+                  {day.schedules.map((schedule, index) => (
+                    <Tooltip
+                      key={schedule.id}
+                      title={`${schedule.driver.personalData.lastName} ${schedule.driver.personalData.firstName} - ${schedule.start_time}-${schedule.end_time}`}
+                    >
+                      <Chip
+                        label={`${schedule.driver.personalData.lastName} ${schedule.start_time}`}
+                        size="small"
+                        sx={{
+                          mb: 0.5,
+                          backgroundColor: getStatusColor(schedule.status),
+                          color: 'white',
+                          fontSize: '0.7rem',
+                          maxWidth: '100%',
+                          '& .MuiChip-label': {
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                          }
+                        }}
+                        onClick={() => handleEditSchedule(schedule)}
+                      />
+                    </Tooltip>
+                  ))}
                 </Box>
-              </Grid>
+
+                {/* Кнопка добавления */}
+                <IconButton
+                  size="small"
+                  sx={{
+                    position: 'absolute',
+                    bottom: 2,
+                    right: 2,
+                    opacity: 0.7,
+                    '&:hover': { opacity: 1 }
+                  }}
+                  onClick={() => handleCreateSchedule(day.date)}
+                >
+                  <AddIcon fontSize="small" />
+                </IconButton>
+              </Box>
             ))}
-          </Grid>
+          </Box>
         ))}
       </Paper>
 
@@ -327,9 +391,11 @@ export function ScheduleCalendar({ onScheduleChange }: ScheduleCalendarProps) {
                 onChange={(e) => setSelectedDriver(e.target.value)}
                 label="Водитель"
               >
-                {/* Здесь нужно загрузить список водителей */}
-                <MenuItem value={1}>Иванов Иван</MenuItem>
-                <MenuItem value={2}>Петров Петр</MenuItem>
+                {drivers.map((driver) => (
+                  <MenuItem key={driver.id} value={driver.id}>
+                    {driver.personalData.lastName} {driver.personalData.firstName} {driver.personalData.patronymic || ''}
+                  </MenuItem>
+                ))}
               </Select>
             </FormControl>
 

@@ -109,6 +109,84 @@ app.post('/api/webhook/driver-deleted', async (req, res) => {
   }
 });
 
+// Webhook для уведомлений о графиках
+app.post('/api/webhook/schedule-created', async (req, res) => {
+  try {
+    const { scheduleId, driverName, date, status } = req.body;
+    
+    console.log(`[${new Date().toISOString()}] Webhook: Новый график создан - ID: ${scheduleId}, Водитель: ${driverName}, Дата: ${date}, Статус: ${status}`);
+    
+    // Отправляем уведомление в Telegram
+    await notificationService.notifyScheduleCreated(scheduleId, driverName, date, status);
+    
+    res.status(200).json({ 
+      success: true, 
+      message: 'Уведомление о графике получено и отправлено',
+      scheduleId,
+      driverName,
+      date,
+      status
+    });
+  } catch (error) {
+    console.error('Ошибка обработки веб-хука графика:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Внутренняя ошибка сервера' 
+    });
+  }
+});
+
+app.post('/api/webhook/schedule-updated', async (req, res) => {
+  try {
+    const { scheduleId, driverName, date, status } = req.body;
+    
+    console.log(`[${new Date().toISOString()}] Webhook: График обновлен - ID: ${scheduleId}, Водитель: ${driverName}, Дата: ${date}, Статус: ${status}`);
+    
+    // Отправляем уведомление в Telegram
+    await notificationService.notifyScheduleUpdated(scheduleId, driverName, date, status);
+    
+    res.status(200).json({ 
+      success: true, 
+      message: 'Уведомление об обновлении графика получено и отправлено',
+      scheduleId,
+      driverName,
+      date,
+      status
+    });
+  } catch (error) {
+    console.error('Ошибка обработки веб-хука графика:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Внутренняя ошибка сервера' 
+    });
+  }
+});
+
+app.post('/api/webhook/schedule-deleted', async (req, res) => {
+  try {
+    const { scheduleId, driverName, date } = req.body;
+    
+    console.log(`[${new Date().toISOString()}] Webhook: График удален - ID: ${scheduleId}, Водитель: ${driverName}, Дата: ${date}`);
+    
+    // Отправляем уведомление в Telegram
+    await notificationService.notifyScheduleDeleted(scheduleId, driverName, date);
+    
+    res.status(200).json({ 
+      success: true, 
+      message: 'Уведомление об удалении графика получено и отправлено',
+      scheduleId,
+      driverName,
+      date
+    });
+  } catch (error) {
+    console.error('Ошибка обработки веб-хука графика:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Внутренняя ошибка сервера' 
+    });
+  }
+});
+
 // Тестовый маршрут для проверки, что сервер жив и CORS работает
 app.get('/ping', (req, res) => {
   console.log(`[${new Date().toISOString()}] Received PING request.`);
@@ -120,3 +198,4 @@ app.get('/', (req, res) => {
 });
 
 export default app;
+export { driverService, scheduleService };

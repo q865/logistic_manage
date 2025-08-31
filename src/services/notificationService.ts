@@ -85,6 +85,88 @@ export class NotificationService {
       console.error('Ошибка отправки уведомления:', error);
     }
   }
+
+  async notifyScheduleCreated(scheduleId: number, driverName: string, date: string, status: string) {
+    if (!this.bot) {
+      console.warn('Бот не инициализирован для отправки уведомлений');
+      return;
+    }
+    const statusIcons: Record<string, string> = {
+      working: '🟢',
+      off: '🔴',
+      repair: '🔧',
+      reserve: '🟡',
+      vacation: '🏖️',
+      loading: '⏰'
+    };
+    const statusIcon = statusIcons[status] || '📅';
+    
+    const message = `📅 **Новый график создан!**\n\n` +
+                   `*ID:* ${scheduleId}\n` +
+                   `*Водитель:* ${driverName}\n` +
+                   `*Дата:* ${new Date(date).toLocaleDateString('ru-RU')}\n` +
+                   `*Статус:* ${statusIcon} ${status}\n` +
+                   `*Время создания:* ${new Date().toLocaleString('ru-RU')}`;
+    try {
+      for (const chatId of this.adminChatIds) {
+        await this.bot.api.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+      }
+      console.log(`[${new Date().toISOString()}] Уведомление о новом графике отправлено в ${this.adminChatIds.length} чат(ов)`);
+    } catch (error) {
+      console.error('Ошибка отправки уведомления:', error);
+    }
+  }
+
+  async notifyScheduleUpdated(scheduleId: number, driverName: string, date: string, status: string) {
+    if (!this.bot) {
+      console.warn('Бот не инициализирован для отправки уведомлений');
+      return;
+    }
+    const statusIcons: Record<string, string> = {
+      working: '🟢',
+      off: '🔴',
+      repair: '🔧',
+      reserve: '🟡',
+      vacation: '🏖️',
+      loading: '⏰'
+    };
+    const statusIcon = statusIcons[status] || '📅';
+    
+    const message = `✏️ **График обновлен!**\n\n` +
+                   `*ID:* ${scheduleId}\n` +
+                   `*Водитель:* ${driverName}\n` +
+                   `*Дата:* ${new Date(date).toLocaleDateString('ru-RU')}\n` +
+                   `*Статус:* ${statusIcon} ${status}\n` +
+                   `*Время обновления:* ${new Date().toLocaleString('ru-RU')}`;
+    try {
+      for (const chatId of this.adminChatIds) {
+        await this.bot.api.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+      }
+      console.log(`[${new Date().toISOString()}] Уведомление об обновлении графика отправлено в ${this.adminChatIds.length} чат(ов)`);
+    } catch (error) {
+      console.error('Ошибка отправки уведомления:', error);
+    }
+  }
+
+  async notifyScheduleDeleted(scheduleId: number, driverName: string, date: string) {
+    if (!this.bot) {
+      console.warn('Бот не инициализирован для отправки уведомлений');
+      return;
+    }
+    const message = `🗑️ **График удален!**\n\n` +
+                   `*ID:* ${scheduleId}\n` +
+                   `*Водитель:* ${driverName}\n` +
+                   `*Дата:* ${new Date(date).toLocaleDateString('ru-RU')}\n` +
+                   `*Время удаления:* ${new Date().toLocaleString('ru-RU')}`;
+    try {
+      for (const chatId of this.adminChatIds) {
+        await this.bot.api.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+      }
+      console.log(`[${new Date().toISOString()}] Уведомление об удалении графика отправлено в ${this.adminChatIds.length} чат(ов)`);
+    } catch (error) {
+      console.error('Ошибка отправки уведомления:', error);
+    }
+  }
 }
 
 // Экспортируем единственный экземпляр

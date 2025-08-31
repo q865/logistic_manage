@@ -5,6 +5,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { Bot, InlineKeyboard, InputFile } from 'grammy';
 import { DriverService } from './services/driverService.js';
+import { ScheduleService } from './services/scheduleService.js';
 import { generateLeaseAgreement } from './services/documentService.js';
 import { notificationService } from './services/notificationService.js';
 import type { Driver } from './models/Driver.js';
@@ -22,13 +23,15 @@ const instructions = {
 };
 
 // Фабрика для создания и настройки бота
-export function createBot(token: string, driverService: DriverService) {
+export function createBot(token: string, driverService: DriverService, scheduleService: ScheduleService) {
   const bot = new Bot(token);
 
   // --- Установка команд в меню ---
   bot.api.setMyCommands([
     { command: 'start', description: '🚀 Запуск бота и справка' },
     { command: 'drivers', description: '👥 Список водителей' },
+    { command: 'schedule', description: '📅 График работы' },
+    { command: 'current', description: '🚗 Текущие рейсы' },
     { command: 'webapp', description: '🌐 Открыть веб-форму' },
     { command: 'instructions', description: '📚 База знаний' },
   ]);
@@ -76,14 +79,18 @@ export function createBot(token: string, driverService: DriverService) {
   bot.command(['start', 'help'], (ctx) => {
     const keyboard = new InlineKeyboard()
       .text('👥 Список водителей', 'drivers_page_1').row()
+      .text('📅 График работы', 'schedule_current').row()
+      .text('🚗 Текущие рейсы', 'current_trips').row()
       .text('🌐 Веб-форма', 'open_webapp').row()
       .text('📚 База знаний', 'open_instructions');
     
     ctx.reply(
       '👋 **Добро пожаловать в Driver Bot!**\n\n' +
-      'Это ваш оперативный помощник для управления водителями и задачами.\n\n' +
+      'Это ваш оперативный помощник для управления водителями и графиками работы.\n\n' +
       '**Доступные команды:**\n' +
       '/drivers - Показать список водителей\n' +
+      '/schedule - Показать график работы\n' +
+      '/current - Текущие рейсы\n' +
       '/webapp - Открыть веб-форму для управления\n' +
       '/driver <ID> - Показать карточку водителя\n' +
       '/instructions - Открыть базу знаний',
@@ -212,6 +219,188 @@ export function createBot(token: string, driverService: DriverService) {
     ctx.editMessageText(text, { parse_mode: 'Markdown', reply_markup: keyboard });
   });
 
+  // --- Команды для графиков ---
+  bot.command('schedule', async (ctx) => {
+    try {
+      const today = new Date();
+      const currentMonth = await scheduleService.getCalendarMonth(today.getFullYear(), today.getMonth() + 1);
+      
+      let text = `📅 **График работы на ${today.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' })}**\n\n`;
+      
+      // Показываем графики на сегодня
+      const todayStr = today.toISOString().split('T')[0];
+      const todaySchedules = currentMonth.weeks
+        .flatMap(week => week.days)
+        .find(day => day.date === todayStr)?.schedules || [];
+      
+      if (todaySchedules.length > 0) {
+        text += `**Сегодня (${today.toLocaleDateString('ru-RU')}):**\n`;
+        todaySchedules.forEach(schedule => {
+          const statusIcon = {
+            working: '🟢',
+            off: '🔴',
+            repair: '🔧',
+            reserve: '🟡',
+            vacation: '🏖️',
+            loading: '⏰'
+          }[schedule.status];
+          
+          text += `${statusIcon} ${schedule.driver.personalData.lastName} ${schedule.driver.personalData.firstName}\n`;
+          text += `   ${schedule.start_time} - ${schedule.end_time}\n`;
+          if (schedule.route_info) text += `   Маршрут: ${schedule.route_info}\n`;
+          text += '\n';
+        });
+      } else {
+        text += `Сегодня (${today.toLocaleDateString('ru-RU')}) графиков нет.\n\n`;
+      }
+      
+      const keyboard = new InlineKeyboard()
+        .text('🌐 Открыть календарь', 'open_schedule_webapp')
+        .row()
+        .text('🚗 Текущие рейсы', 'current_trips')
+        .text('👥 Список водителей', 'drivers_page_1');
+      
+      await ctx.reply(text, { parse_mode: 'Markdown', reply_markup: keyboard });
+    } catch (error) {
+      console.error('Ошибка получения графика:', error);
+      await ctx.reply('❌ Произошла ошибка при получении графика работы.');
+    }
+  });
+
+  bot.command('current', async (ctx) => {
+    try {
+      const currentSchedules = await scheduleService.getCurrentSchedules();
+      
+      if (currentSchedules.length === 0) {
+        await ctx.reply('🚗 **Текущие рейсы**\n\nСейчас нет активных рейсов.');
+        return;
+      }
+      
+      let text = `🚗 **Текущие рейсы**\n\n`;
+      text += `Время: ${new Date().toLocaleTimeString('ru-RU')}\n\n`;
+      
+      currentSchedules.forEach(schedule => {
+        text += `🟢 **${schedule.driver.personalData.lastName} ${schedule.driver.personalData.firstName}**\n`;
+        text += `Авто: ${schedule.driver.vehicle.make} ${schedule.driver.vehicle.model} (${schedule.driver.vehicle.licensePlate})\n`;
+        text += `Время: ${schedule.start_time} - ${schedule.end_time}\n`;
+        if (schedule.route_info) text += `Маршрут: ${schedule.route_info}\n`;
+        text += '\n';
+      });
+      
+      const keyboard = new InlineKeyboard()
+        .text('📅 График работы', 'schedule_current')
+        .row()
+        .text('🌐 Открыть календарь', 'open_schedule_webapp');
+      
+      await ctx.reply(text, { parse_mode: 'Markdown', reply_markup: keyboard });
+    } catch (error) {
+      console.error('Ошибка получения текущих рейсов:', error);
+      await ctx.reply('❌ Произошла ошибка при получении текущих рейсов.');
+    }
+  });
+
+  // Callback для открытия календаря
+  bot.callbackQuery('open_schedule_webapp', (ctx) => {
+    const keyboard = new InlineKeyboard()
+      .url('📅 Открыть календарь', `${WEBAPP_URL}#/schedule`)
+      .row()
+      .text('🚗 Текущие рейсы', 'current_trips')
+      .text('👥 Список водителей', 'drivers_page_1');
+    
+    ctx.editMessageText(
+      '📅 **Календарь графиков работы**\n\n' +
+      'Нажмите кнопку ниже, чтобы открыть интерактивный календарь для:\n' +
+      '• Просмотра графиков по дням\n' +
+      '• Создания новых графиков\n' +
+      '• Редактирования существующих\n' +
+      '• Управления статусами водителей',
+      { parse_mode: 'Markdown', reply_markup: keyboard }
+    );
+  });
+
+  bot.callbackQuery('schedule_current', async (ctx) => {
+    await ctx.answerCallbackQuery();
+    // Показываем график работы
+    try {
+      const today = new Date();
+      const currentMonth = await scheduleService.getCalendarMonth(today.getFullYear(), today.getMonth() + 1);
+      
+      let text = `📅 **График работы на ${today.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' })}**\n\n`;
+      
+      // Показываем графики на сегодня
+      const todayStr = today.toISOString().split('T')[0];
+      const todaySchedules = currentMonth.weeks
+        .flatMap(week => week.days)
+        .find(day => day.date === todayStr)?.schedules || [];
+      
+      if (todaySchedules.length > 0) {
+        text += `**Сегодня (${today.toLocaleDateString('ru-RU')}):**\n`;
+        todaySchedules.forEach(schedule => {
+          const statusIcon = {
+            working: '🟢',
+            off: '🔴',
+            repair: '🔧',
+            reserve: '🟡',
+            vacation: '🏖️',
+            loading: '⏰'
+          }[schedule.status];
+          
+          text += `${statusIcon} ${schedule.driver.personalData.lastName} ${schedule.driver.personalData.firstName}\n`;
+          text += `   ${schedule.start_time} - ${schedule.end_time}\n`;
+          if (schedule.route_info) text += `   Маршрут: ${schedule.route_info}\n`;
+          text += '\n';
+        });
+      } else {
+        text += `Сегодня (${today.toLocaleDateString('ru-RU')}) графиков нет.\n\n`;
+      }
+      
+      const keyboard = new InlineKeyboard()
+        .text('🌐 Открыть календарь', 'open_schedule_webapp')
+        .row()
+        .text('🚗 Текущие рейсы', 'current_trips')
+        .text('👥 Список водителей', 'drivers_page_1');
+      
+      await ctx.editMessageText(text, { parse_mode: 'Markdown', reply_markup: keyboard });
+    } catch (error) {
+      console.error('Ошибка получения графика:', error);
+      await ctx.editMessageText('❌ Произошла ошибка при получении графика работы.');
+    }
+  });
+
+  bot.callbackQuery('current_trips', async (ctx) => {
+    await ctx.answerCallbackQuery();
+    // Показываем текущие рейсы
+    try {
+      const currentSchedules = await scheduleService.getCurrentSchedules();
+      
+      if (currentSchedules.length === 0) {
+        await ctx.editMessageText('🚗 **Текущие рейсы**\n\nСейчас нет активных рейсов.');
+        return;
+      }
+      
+      let text = `🚗 **Текущие рейсы**\n\n`;
+      text += `Время: ${new Date().toLocaleTimeString('ru-RU')}\n\n`;
+      
+      currentSchedules.forEach(schedule => {
+        text += `🟢 **${schedule.driver.personalData.lastName} ${schedule.driver.personalData.firstName}**\n`;
+        text += `Авто: ${schedule.driver.vehicle.make} ${schedule.driver.vehicle.model} (${schedule.driver.vehicle.licensePlate})\n`;
+        text += `Время: ${schedule.start_time} - ${schedule.end_time}\n`;
+        if (schedule.route_info) text += `Маршрут: ${schedule.route_info}\n`;
+        text += '\n';
+      });
+      
+      const keyboard = new InlineKeyboard()
+        .text('📅 График работы', 'schedule_current')
+        .row()
+        .text('🌐 Открыть календарь', 'open_schedule_webapp');
+      
+      await ctx.editMessageText(text, { parse_mode: 'Markdown', reply_markup: keyboard });
+    } catch (error) {
+      console.error('Ошибка получения текущих рейсов:', error);
+      await ctx.editMessageText('❌ Произошла ошибка при получении текущих рейсов.');
+    }
+  });
+
   // --- Заглушки для новых функций ---
   bot.callbackQuery(/(todo_list|calculate_route|edit_driver)_(\d+)/, async (ctx) => {
     await ctx.answerCallbackQuery({
@@ -221,7 +410,7 @@ export function createBot(token: string, driverService: DriverService) {
   });
 
   bot.callbackQuery(/delete_driver_(\d+)/, async (ctx) => {
-    const driverId = parseInt(ctx.match[1]!, 10);
+    const driverId = parseInt((ctx.match as RegExpMatchArray)[1]!, 10);
     const driver = await driverService.findDriverById(driverId);
     if (!driver) return ctx.answerCallbackQuery({ text: 'Этот водитель уже удален.', show_alert: true });
     const text = `Вы уверены, что хотите удалить водителя *${driver.personalData.lastName}*?`;
@@ -233,7 +422,7 @@ export function createBot(token: string, driverService: DriverService) {
   });
 
   bot.callbackQuery(/confirm_delete_(\d+)/, async (ctx) => {
-    const driverId = parseInt(ctx.match[1]!, 10);
+    const driverId = parseInt((ctx.match as RegExpMatchArray)[1]!, 10);
     try {
       await driverService.deleteDriver(driverId);
       await ctx.editMessageText(`✅ Водитель с ID ${driverId} успешно удален.`);
@@ -253,14 +442,13 @@ export function createBot(token: string, driverService: DriverService) {
 }
 
 // --- Запуск ---
-export async function startBot() {
+export async function startBot(driverService: DriverService, scheduleService: ScheduleService) {
   const BOT_TOKEN = process.env.BOT_TOKEN;
   if (!BOT_TOKEN) {
     console.error('Ошибка: Не указан токен Telegram-бота.');
     process.exit(1);
   }
-  const driverService = new DriverService();
-  const bot = createBot(BOT_TOKEN, driverService);
+  const bot = createBot(BOT_TOKEN, driverService, scheduleService);
   
   // Инициализируем сервис уведомлений с ботом
   notificationService.setBot(bot);
@@ -271,5 +459,7 @@ export async function startBot() {
 
 // Если файл запускается напрямую
 if (import.meta.url.startsWith('file://') && process.argv[1] === new URL(import.meta.url).pathname) {
-  startBot();
+  const driverService = new DriverService();
+  const scheduleService = new ScheduleService();
+  startBot(driverService, scheduleService);
 }

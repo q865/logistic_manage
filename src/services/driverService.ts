@@ -6,27 +6,59 @@ import type { Driver, NewDriver } from '../models/Driver.js';
 // ... (mapDbRowToDriver и mapDriverToDbRow без изменений)
 const mapDbRowToDriver = (row: any): Driver | null => {
   if (!row) return null;
+  
+  // Парсим JSON поля
+  const personalData = typeof row.personalData === 'string' ? JSON.parse(row.personalData) : (row.personalData || {});
+  const passport = typeof row.passport === 'string' ? JSON.parse(row.passport) : (row.passport || {});
+  const vehicle = typeof row.vehicle === 'string' ? JSON.parse(row.vehicle) : (row.vehicle || {});
+  const driverLicense = row.driverLicense ? (typeof row.driverLicense === 'string' ? JSON.parse(row.driverLicense) : row.driverLicense) : {};
+  
+  // Обрабатываем leaseAgreement с учетом отдельного поля date
+  let leaseAgreement = row.leaseAgreement ? (typeof row.leaseAgreement === 'string' ? JSON.parse(row.leaseAgreement) : row.leaseAgreement) : {};
+  
+  // Если есть отдельное поле lease_agreement_date, добавляем его в leaseAgreement
+  if (row.lease_agreement_date) {
+    leaseAgreement = {
+      ...leaseAgreement,
+      date: row.lease_agreement_date
+    };
+  }
+  
   return {
     id: row.id,
-    personalData: typeof row.personalData === 'string' ? JSON.parse(row.personalData) : (row.personalData || {}),
-    passport: typeof row.passport === 'string' ? JSON.parse(row.passport) : (row.passport || {}),
-    vehicle: typeof row.vehicle === 'string' ? JSON.parse(row.vehicle) : (row.vehicle || {}),
-    driverLicense: row.driverLicense ? (typeof row.driverLicense === 'string' ? JSON.parse(row.driverLicense) : row.driverLicense) : {},
-    leaseAgreement: row.leaseAgreement ? (typeof row.leaseAgreement === 'string' ? JSON.parse(row.leaseAgreement) : row.leaseAgreement) : {},
+    personalData,
+    passport,
+    vehicle,
+    driverLicense,
+    leaseAgreement,
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
   };
 };
 const mapDriverToDbRow = (data: Partial<NewDriver>) => {
   const flatData: Record<string, any> = {};
+  
   for (const key in data) {
     const typedKey = key as keyof NewDriver;
     if (data[typedKey] !== undefined) {
-      flatData[typedKey] = typeof data[typedKey] === 'object' && data[typedKey] !== null 
-        ? JSON.stringify(data[typedKey]) 
-        : data[typedKey];
+      if (typedKey === 'leaseAgreement' && data[typedKey]) {
+        const leaseAgreement = data[typedKey] as any;
+        // Сохраняем номер договора в JSON поле
+        if (leaseAgreement.number) {
+          flatData.leaseAgreement = JSON.stringify({ number: leaseAgreement.number });
+        }
+        // Сохраняем дату договора в отдельное поле
+        if (leaseAgreement.date) {
+          flatData.lease_agreement_date = leaseAgreement.date;
+        }
+      } else {
+        flatData[typedKey] = typeof data[typedKey] === 'object' && data[typedKey] !== null 
+          ? JSON.stringify(data[typedKey]) 
+          : data[typedKey];
+      }
     }
   }
+  
   return flatData;
 };
 

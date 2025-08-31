@@ -1,7 +1,7 @@
 
 // src/components/DriverEditForm.tsx
 import { useState, useEffect } from 'react';
-import { Typography, Box, TextField, Grid, Button, Divider, Alert, CircularProgress } from '@mui/material';
+import { Typography, Box, TextField, Button, Divider, Alert, CircularProgress } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs, { Dayjs } from 'dayjs';
 import axios from 'axios';
@@ -29,6 +29,9 @@ export function DriverEditForm({ driverId, onUpdateSuccess, onCancel }: DriverEd
       try {
         const response = await axios.get<Driver>(`${API_URL}/${driverId}`);
         const driverData = response.data;
+        console.log('Загруженные данные водителя:', driverData);
+        console.log('Данные автомобиля:', driverData.vehicle);
+        
         // Преобразуем строки дат в объекты Dayjs для DatePicker
         if (driverData.personalData?.birthDate) {
           driverData.personalData.birthDate = dayjs(driverData.personalData.birthDate);
@@ -38,6 +41,7 @@ export function DriverEditForm({ driverId, onUpdateSuccess, onCancel }: DriverEd
         }
         setFormData(driverData);
       } catch (error) {
+        console.error('Ошибка загрузки данных:', error);
         setFormMessage({ type: 'error', text: 'Не удалось загрузить данные водителя.' });
       } finally {
         setIsFetching(false);
@@ -116,41 +120,47 @@ export function DriverEditForm({ driverId, onUpdateSuccess, onCancel }: DriverEd
       <Box component="form" noValidate autoComplete="off">
         {/* --- Личные данные --- */}
         <Typography variant="h6" gutterBottom sx={{ mt: 4 }}>1. Личные данные</Typography>
-        <Grid container spacing={2}>
-          <Grid xs={12} sm={4}><TextField required fullWidth name="lastName" label="Фамилия" value={formData.personalData?.lastName || ''} onChange={createChangeHandler('personalData')} error={!!errors['personalData.lastName']} helperText={errors['personalData.lastName']} disabled={isLoading} /></Grid>
-          <Grid xs={12} sm={4}><TextField required fullWidth name="firstName" label="Имя" value={formData.personalData?.firstName || ''} onChange={createChangeHandler('personalData')} error={!!errors['personalData.firstName']} helperText={errors['personalData.firstName']} disabled={isLoading} /></Grid>
-          <Grid xs={12} sm={4}><TextField fullWidth name="patronymic" label="Отчество" value={formData.personalData?.patronymic || ''} onChange={createChangeHandler('personalData')} disabled={isLoading} /></Grid>
-          <Grid xs={12} sm={6}><DatePicker label="Дата рождения" value={formData.personalData?.birthDate || null} onChange={createDateChangeHandler('personalData', 'birthDate')} sx={{ width: '100%' }} slotProps={{ textField: { error: !!errors['personalData.birthDate'], helperText: errors['personalData.birthDate'], required: true } }} disabled={isLoading} /></Grid>
-        </Grid>
+        <Box display="flex" flexWrap="wrap" gap={2}>
+          <Box flex="1 1 calc(33.333% - 16px)" minWidth={200}><TextField required fullWidth name="lastName" label="Фамилия" value={formData.personalData?.lastName || ''} onChange={createChangeHandler('personalData')} error={!!errors['personalData.lastName']} helperText={errors['personalData.lastName']} disabled={isLoading} /></Box>
+          <Box flex="1 1 calc(33.333% - 16px)" minWidth={200}><TextField required fullWidth name="firstName" label="Имя" value={formData.personalData?.firstName || ''} onChange={createChangeHandler('personalData')} error={!!errors['personalData.firstName']} helperText={errors['personalData.firstName']} disabled={isLoading} /></Box>
+          <Box flex="1 1 calc(33.333% - 16px)" minWidth={200}><TextField fullWidth name="patronymic" label="Отчество" value={formData.personalData?.patronymic || ''} onChange={createChangeHandler('personalData')} disabled={isLoading} /></Box>
+          <Box flex="1 1 calc(50% - 16px)" minWidth={200}><DatePicker label="Дата рождения" value={formData.personalData?.birthDate || null} onChange={createDateChangeHandler('personalData', 'birthDate')} sx={{ width: '100%' }} slotProps={{ textField: { error: !!errors['personalData.birthDate'], helperText: errors['personalData.birthDate'], required: true } }} disabled={isLoading} /></Box>
+        </Box>
 
         {/* --- Документы и т.д. (аналогично форме создания) --- */}
         <Typography variant="h6" gutterBottom sx={{ mt: 4 }}>2. Документы</Typography>
-        <Grid container spacing={2}>
-          <Grid xs={12} sm={6}><TextField fullWidth name="number" label="Номер ВУ" value={formData.driverLicense?.number || ''} onChange={createChangeHandler('driverLicense')} error={!!errors['driverLicense.number']} helperText={errors['driverLicense.number']} disabled={isLoading} /></Grid>
-          <Grid xs={12} sm={6}><TextField fullWidth name="number" label="Номер договора аренды" value={formData.leaseAgreement?.number || ''} onChange={createChangeHandler('leaseAgreement')} error={!!errors['leaseAgreement.number']} helperText={errors['leaseAgreement.number']} disabled={isLoading} /></Grid>
-          <Grid xs={6} sm={3}><TextField required fullWidth name="series" label="Серия паспорта" value={formData.passport?.series || ''} onChange={createChangeHandler('passport')} error={!!errors['passport.series']} helperText={errors['passport.series']} disabled={isLoading} /></Grid>
-          <Grid xs={6} sm={3}><TextField required fullWidth name="number" label="Номер паспорта" value={formData.passport?.number || ''} onChange={createChangeHandler('passport')} error={!!errors['passport.number']} helperText={errors['passport.number']} disabled={isLoading} /></Grid>
-          <Grid xs={12} sm={6}><DatePicker label="Дата выдачи паспорта" value={formData.passport?.issueDate || null} onChange={createDateChangeHandler('passport', 'issueDate')} sx={{ width: '100%' }} slotProps={{ textField: { error: !!errors['passport.issueDate'], helperText: errors['passport.issueDate'], required: true } }} disabled={isLoading} /></Grid>
-          <Grid xs={12} sm={6}><TextField required fullWidth name="departmentCode" label="Код подразделения" value={formData.passport?.departmentCode || ''} onChange={createChangeHandler('passport')} error={!!errors['passport.departmentCode']} helperText={errors['passport.departmentCode']} disabled={isLoading} /></Grid>
-          <Grid xs={12}><TextField required fullWidth name="issuedBy" label="Кем выдан" value={formData.passport?.issuedBy || ''} onChange={createChangeHandler('passport')} error={!!errors['passport.issuedBy']} helperText={errors['passport.issuedBy']} disabled={isLoading} /></Grid>
-          <Grid xs={12}><TextField fullWidth name="registrationAddress" label="Адрес прописки" value={formData.passport?.registrationAddress || ''} onChange={createChangeHandler('passport')} error={!!errors['passport.registrationAddress']} helperText={errors['passport.registrationAddress']} disabled={isLoading} /></Grid>
-        </Grid>
+        <Box display="flex" flexWrap="wrap" gap={2}>
+          <Box flex="1 1 calc(50% - 16px)" minWidth={200}><TextField fullWidth name="number" label="Номер ВУ" value={formData.driverLicense?.number || ''} onChange={createChangeHandler('driverLicense')} error={!!errors['driverLicense.number']} helperText={errors['driverLicense.number']} disabled={isLoading} /></Box>
+          <Box flex="1 1 calc(50% - 16px)" minWidth={200}><TextField fullWidth name="number" label="Номер договора аренды" value={formData.leaseAgreement?.number || ''} onChange={createChangeHandler('leaseAgreement')} error={!!errors['leaseAgreement.number']} helperText={errors['leaseAgreement.number']} disabled={isLoading} /></Box>
+          <Box flex="1 1 calc(25% - 16px)" minWidth={150}><TextField required fullWidth name="series" label="Серия паспорта" value={formData.passport?.series || ''} onChange={createChangeHandler('passport')} error={!!errors['passport.series']} helperText={errors['passport.series']} disabled={isLoading} /></Box>
+          <Box flex="1 1 calc(25% - 16px)" minWidth={150}><TextField required fullWidth name="number" label="Номер паспорта" value={formData.passport?.number || ''} onChange={createChangeHandler('passport')} error={!!errors['passport.number']} helperText={errors['passport.number']} disabled={isLoading} /></Box>
+          <Box flex="1 1 calc(50% - 16px)" minWidth={200}><DatePicker label="Дата выдачи паспорта" value={formData.passport?.issueDate || null} onChange={createDateChangeHandler('passport', 'issueDate')} sx={{ width: '100%' }} slotProps={{ textField: { error: !!errors['passport.issueDate'], helperText: errors['passport.issueDate'], required: true } }} disabled={isLoading} /></Box>
+          <Box flex="1 1 calc(50% - 16px)" minWidth={200}><TextField required fullWidth name="departmentCode" label="Код подразделения" value={formData.passport?.departmentCode || ''} onChange={createChangeHandler('passport')} error={!!errors['passport.departmentCode']} helperText={errors['passport.departmentCode']} disabled={isLoading} /></Box>
+          <Box flex="1 1 100%"><TextField required fullWidth name="issuedBy" label="Кем выдан" value={formData.passport?.issuedBy || ''} onChange={createChangeHandler('passport')} error={!!errors['passport.issuedBy']} helperText={errors['passport.issuedBy']} disabled={isLoading} /></Box>
+          <Box flex="1 1 100%"><TextField fullWidth name="registrationAddress" label="Адрес прописки" value={formData.passport?.registrationAddress || ''} onChange={createChangeHandler('passport')} error={!!errors['passport.registrationAddress']} helperText={errors['passport.registrationAddress']} disabled={isLoading} /></Box>
+        </Box>
 
         <Typography variant="h6" gutterBottom sx={{ mt: 4 }}>3. Данные по автомобилю</Typography>
-        <Grid container spacing={2}>
-            <Grid xs={12} sm={6}><TextField required fullWidth name="make" label="Марка" value={formData.vehicle?.make || ''} onChange={createChangeHandler('vehicle')} error={!!errors['vehicle.make']} helperText={errors['vehicle.make']} disabled={isLoading} /></Grid>
-            <Grid xs={12} sm={6}><TextField required fullWidth name="model" label="Модель" value={formData.vehicle?.model || ''} onChange={createChangeHandler('vehicle')} error={!!errors['vehicle.model']} helperText={errors['vehicle.model']} disabled={isLoading} /></Grid>
-            <Grid xs={12} sm={4}><TextField required fullWidth name="licensePlate" label="Рег. знак" value={formData.vehicle?.licensePlate || ''} onChange={createChangeHandler('vehicle')} error={!!errors['vehicle.licensePlate']} helperText={errors['vehicle.licensePlate']} disabled={isLoading} /></Grid>
-            <Grid xs={12} sm={4}><TextField required fullWidth name="year" label="Год выпуска" type="number" value={formData.vehicle?.year || ''} onChange={createChangeHandler('vehicle')} error={!!errors['vehicle.year']} helperText={errors['vehicle.year']} disabled={isLoading} /></Grid>
-            <Grid xs={12} sm={4}><TextField required fullWidth name="bodyColor" label="Цвет кузова" value={formData.vehicle?.bodyColor || ''} onChange={createChangeHandler('vehicle')} error={!!errors['vehicle.bodyColor']} helperText={errors['vehicle.bodyColor']} disabled={isLoading} /></Grid>
-            <Grid xs={12}><TextField required fullWidth name="vin" label="Идентификационный номер (VIN)" value={formData.vehicle?.vin || ''} onChange={createChangeHandler('vehicle')} error={!!errors['vehicle.vin']} helperText={errors['vehicle.vin']} disabled={isLoading} /></Grid>
-            <Grid xs={12} sm={6}><TextField required fullWidth name="type" label="Наименование (тип ТС)" value={formData.vehicle?.type || ''} onChange={createChangeHandler('vehicle')} error={!!errors['vehicle.type']} helperText={errors['vehicle.type']} disabled={isLoading} /></Grid>
-            <Grid xs={12} sm={6}><TextField fullWidth name="chassis" label="Шасси (рама)" value={formData.vehicle?.chassis || ''} onChange={createChangeHandler('vehicle')} disabled={isLoading} /></Grid>
-            <Grid xs={12} sm={6}><TextField fullWidth name="bodyNumber" label="Кузов (кабина, прицеп) №" value={formData.vehicle?.bodyNumber || ''} onChange={createChangeHandler('vehicle')} disabled={isLoading} /></Grid>
-            <Grid xs={12} sm={6}><TextField required fullWidth name="ptsNumber" label="ПТС, номер" value={formData.vehicle?.ptsNumber || ''} onChange={createChangeHandler('vehicle')} error={!!errors['vehicle.ptsNumber']} helperText={errors['vehicle.ptsNumber']} disabled={isLoading} /></Grid>
-            <Grid xs={12} sm={6}><TextField required fullWidth name="stsNumber" label="СТС, номер" value={formData.vehicle?.stsNumber || ''} onChange={createChangeHandler('vehicle')} error={!!errors['vehicle.stsNumber']} helperText={errors['vehicle.stsNumber']} disabled={isLoading} /></Grid>
-            <Grid xs={12} sm={6}><TextField required fullWidth name="stsIssueInfo" label="СТС, когда кем выдано" value={formData.vehicle?.stsIssueInfo || ''} onChange={createChangeHandler('vehicle')} error={!!errors['vehicle.stsIssueInfo']} helperText={errors['vehicle.stsIssueInfo']} disabled={isLoading} /></Grid>
-        </Grid>
+        {/* Отладочная информация */}
+        <Box sx={{ mb: 2, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
+          <Typography variant="body2" color="text.secondary">
+            Отладка: formData.vehicle = {JSON.stringify(formData.vehicle, null, 2)}
+          </Typography>
+        </Box>
+        <Box display="flex" flexWrap="wrap" gap={2}>
+            <Box flex="1 1 calc(50% - 16px)" minWidth={200}><TextField required fullWidth name="make" label="Марка" value={formData.vehicle?.make || ''} onChange={createChangeHandler('vehicle')} error={!!errors['vehicle.make']} helperText={errors['vehicle.make']} disabled={isLoading} /></Box>
+            <Box flex="1 1 calc(50% - 16px)" minWidth={200}><TextField required fullWidth name="model" label="Модель" value={formData.vehicle?.model || ''} onChange={createChangeHandler('vehicle')} error={!!errors['vehicle.model']} helperText={errors['vehicle.model']} disabled={isLoading} /></Box>
+            <Box flex="1 1 calc(33.333% - 16px)" minWidth={150}><TextField required fullWidth name="licensePlate" label="Рег. знак" value={formData.vehicle?.licensePlate || ''} onChange={createChangeHandler('vehicle')} error={!!errors['vehicle.licensePlate']} helperText={errors['vehicle.licensePlate']} disabled={isLoading} /></Box>
+            <Box flex="1 1 calc(33.333% - 16px)" minWidth={150}><TextField required fullWidth name="year" label="Год выпуска" type="number" value={formData.vehicle?.year || ''} onChange={createChangeHandler('vehicle')} error={!!errors['vehicle.year']} helperText={errors['vehicle.year']} disabled={isLoading} /></Box>
+            <Box flex="1 1 calc(33.333% - 16px)" minWidth={150}><TextField required fullWidth name="bodyColor" label="Цвет кузова" value={formData.vehicle?.bodyColor || ''} onChange={createChangeHandler('vehicle')} error={!!errors['vehicle.bodyColor']} helperText={errors['vehicle.bodyColor']} disabled={isLoading} /></Box>
+            <Box flex="1 1 100%"><TextField required fullWidth name="vin" label="Идентификационный номер (VIN)" value={formData.vehicle?.vin || ''} onChange={createChangeHandler('vehicle')} error={!!errors['vehicle.vin']} helperText={errors['vehicle.vin']} disabled={isLoading} /></Box>
+            <Box flex="1 1 calc(50% - 16px)" minWidth={200}><TextField required fullWidth name="type" label="Наименование (тип ТС)" value={formData.vehicle?.type || ''} onChange={createChangeHandler('vehicle')} error={!!errors['vehicle.type']} helperText={errors['vehicle.type']} disabled={isLoading} /></Box>
+            <Box flex="1 1 calc(50% - 16px)" minWidth={200}><TextField fullWidth name="chassis" label="Шасси (рама)" value={formData.vehicle?.chassis || ''} onChange={createChangeHandler('vehicle')} disabled={isLoading} /></Box>
+            <Box flex="1 1 calc(50% - 16px)" minWidth={200}><TextField fullWidth name="bodyNumber" label="Кузов (кабина, прицеп) №" value={formData.vehicle?.bodyNumber || ''} onChange={createChangeHandler('vehicle')} disabled={isLoading} /></Box>
+            <Box flex="1 1 calc(50% - 16px)" minWidth={200}><TextField required fullWidth name="ptsNumber" label="ПТС, номер" value={formData.vehicle?.ptsNumber || ''} onChange={createChangeHandler('vehicle')} error={!!errors['vehicle.ptsNumber']} helperText={errors['vehicle.ptsNumber']} disabled={isLoading} /></Box>
+            <Box flex="1 1 calc(50% - 16px)" minWidth={200}><TextField required fullWidth name="stsNumber" label="СТС, номер" value={formData.vehicle?.stsNumber || ''} onChange={createChangeHandler('vehicle')} error={!!errors['vehicle.stsNumber']} helperText={errors['vehicle.stsNumber']} disabled={isLoading} /></Box>
+            <Box flex="1 1 calc(50% - 16px)" minWidth={200}><TextField required fullWidth name="stsIssueInfo" label="СТС, когда кем выдано" value={formData.vehicle?.stsIssueInfo || ''} onChange={createChangeHandler('vehicle')} error={!!errors['vehicle.stsIssueInfo']} helperText={errors['vehicle.stsIssueInfo']} disabled={isLoading} /></Box>
+        </Box>
 
         <Divider sx={{ my: 4 }} />
         {formMessage && <Alert severity={formMessage.type} sx={{ mb: 2 }}>{formMessage.text}</Alert>}

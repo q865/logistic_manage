@@ -36,12 +36,12 @@ export interface UpdateScheduleRequest {
 }
 
 export interface ScheduleFilters {
-  driver_id?: number;
-  date_from?: string;
-  date_to?: string;
-  status?: ScheduleStatus;
-  page?: number;
-  limit?: number;
+  driver_id?: number | undefined;
+  date_from?: string | undefined;
+  date_to?: string | undefined;
+  status?: ScheduleStatus | undefined;
+  page?: number | undefined;
+  limit?: number | undefined;
 }
 
 export interface ScheduleWithDriver extends Schedule {
