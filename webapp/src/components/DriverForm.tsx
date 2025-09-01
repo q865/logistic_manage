@@ -1,10 +1,37 @@
 // src/components/DriverForm.tsx
 import { useState } from 'react';
-import { Typography, Box, TextField, Grid, Button, Divider, Alert, CircularProgress } from '@mui/material';
+import { 
+  Typography, 
+  Box, 
+  TextField, 
+  Grid, 
+  Button, 
+  Alert, 
+  CircularProgress,
+  Paper,
+  Card,
+  CardContent,
+  CardHeader,
+  useMediaQuery,
+  useTheme,
+  Stepper,
+  Step,
+  StepLabel,
+  StepContent
+} from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import type { Dayjs } from 'dayjs';
 import axios from 'axios';
 import type { PersonalData, Passport, Vehicle, DriverLicense, LeaseAgreement } from '../types.js';
+import { 
+  Person as PersonIcon, 
+  CreditCard as PassportIcon, 
+  DirectionsCar as CarIcon,
+  DriveEta as LicenseIcon,
+  Description as DocumentIcon,
+  Save as SaveIcon,
+  Clear as ClearIcon
+} from '@mui/icons-material';
 
 const API_URL = 'http://localhost:3000/api/drivers';
 
@@ -19,7 +46,20 @@ interface DriverFormProps {
   onDriverCreated: () => void;
 }
 
+const steps = [
+  { label: 'Личные данные', icon: <PersonIcon /> },
+  { label: 'Паспорт', icon: <PassportIcon /> },
+  { label: 'Автомобиль', icon: <CarIcon /> },
+  { label: 'Водительские права', icon: <LicenseIcon /> },
+  { label: 'Договор аренды', icon: <DocumentIcon /> }
+];
+
 export function DriverForm({ onDriverCreated }: DriverFormProps) {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isSmallMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  
+  const [activeStep, setActiveStep] = useState(0);
   const [personalData, setPersonalData] = useState(initialPersonalData);
   const [passport, setPassport] = useState(initialPassport);
   const [vehicle, setVehicle] = useState(initialVehicle);
@@ -50,6 +90,15 @@ export function DriverForm({ onDriverCreated }: DriverFormProps) {
     setDriverLicense(initialDriverLicense);
     setLeaseAgreement(initialLeaseAgreement);
     setErrors({});
+    setActiveStep(0);
+  };
+
+  const handleNext = () => {
+    setActiveStep((prevActiveStep) => prevActiveStep + 1);
+  };
+
+  const handleBack = () => {
+    setActiveStep((prevActiveStep) => prevActiveStep - 1);
   };
 
   const handleSubmit = async () => {
@@ -92,87 +141,542 @@ export function DriverForm({ onDriverCreated }: DriverFormProps) {
     } catch (error) {
       if (axios.isAxiosError(error) && error.response?.status === 400) {
         const newErrors: Record<string, string> = {};
-        error.response.data.errors.forEach((err: any) => { newErrors[err.path] = err.msg; });
+        if (error.response.data.errors) {
+          error.response.data.errors.forEach((err: { path: string; msg: string }) => { 
+            newErrors[err.path] = err.msg; 
+          });
+        }
         setErrors(newErrors);
         setFormMessage({ type: 'error', text: 'Пожалуйста, исправьте ошибки в форме.' });
       } else {
-        console.error('Ошибка:', error);
-        setFormMessage({ type: 'error', text: 'Произошла ошибка. Подробности в консоли.' });
+        setFormMessage({ type: 'error', text: 'Произошла ошибка при создании водителя.' });
       }
     } finally {
       setIsLoading(false);
     }
   };
 
+  const getFieldError = (fieldPath: string) => {
+    return errors[fieldPath] || '';
+  };
+
+  const renderStepContent = (step: number) => {
+    switch (step) {
+      case 0:
+        return (
+          <Card sx={{ mb: 2 }}>
+            <CardHeader 
+              title="Личные данные" 
+              avatar={<PersonIcon sx={{ color: 'primary.main' }} />}
+              sx={{ 
+                background: 'linear-gradient(135deg, #f8fafc 0%, #e3f2fd 100%)',
+                '& .MuiCardHeader-title': { fontWeight: 600 }
+              }}
+            />
+            <CardContent>
+              <Grid container spacing={2}>
+                <Grid xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Фамилия"
+                    name="lastName"
+                    value={personalData.lastName}
+                    onChange={handlePersonalDataChange}
+                    error={!!getFieldError('personalData.lastName')}
+                    helperText={getFieldError('personalData.lastName')}
+                    required
+                  />
+                </Grid>
+                <Grid xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Имя"
+                    name="firstName"
+                    value={personalData.firstName}
+                    onChange={handlePersonalDataChange}
+                    error={!!getFieldError('personalData.firstName')}
+                    helperText={getFieldError('personalData.firstName')}
+                    required
+                  />
+                </Grid>
+                <Grid xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Отчество"
+                    name="patronymic"
+                    value={personalData.patronymic}
+                    onChange={handlePersonalDataChange}
+                    error={!!getFieldError('personalData.patronymic')}
+                    helperText={getFieldError('personalData.patronymic')}
+                  />
+                </Grid>
+                <Grid xs={12} sm={6}>
+                  <DatePicker
+                    label="Дата рождения"
+                    value={personalData.birthDate}
+                    onChange={createDateChangeHandler(setPersonalData, 'birthDate')}
+                    sx={{ width: '100%' }}
+                  />
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+        );
+      case 1:
+        return (
+          <Card sx={{ mb: 2 }}>
+            <CardHeader 
+              title="Паспортные данные" 
+              avatar={<PassportIcon sx={{ color: 'primary.main' }} />}
+              sx={{ 
+                background: 'linear-gradient(135deg, #f8fafc 0%, #e3f2fd 100%)',
+                '& .MuiCardHeader-title': { fontWeight: 600 }
+              }}
+            />
+            <CardContent>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Серия"
+                    name="series"
+                    value={passport.series}
+                    onChange={handlePassportChange}
+                    error={!!getFieldError('passport.series')}
+                    helperText={getFieldError('passport.series')}
+                    required
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Номер"
+                    name="number"
+                    value={passport.number}
+                    onChange={handlePassportChange}
+                    error={!!getFieldError('passport.number')}
+                    helperText={getFieldError('passport.number')}
+                    required
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Кем выдан"
+                    name="issuedBy"
+                    value={passport.issuedBy}
+                    onChange={handlePassportChange}
+                    error={!!getFieldError('passport.issuedBy')}
+                    helperText={getFieldError('passport.issuedBy')}
+                    required
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Код подразделения"
+                    name="departmentCode"
+                    value={passport.departmentCode}
+                    onChange={handlePassportChange}
+                    error={!!getFieldError('passport.departmentCode')}
+                    helperText={getFieldError('passport.departmentCode')}
+                    required
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <DatePicker
+                    label="Дата выдачи"
+                    value={passport.issueDate}
+                    onChange={createDateChangeHandler(setPassport, 'issueDate')}
+                    sx={{ width: '100%' }}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Адрес регистрации"
+                    name="registrationAddress"
+                    value={passport.registrationAddress}
+                    onChange={handlePassportChange}
+                    error={!!getFieldError('passport.registrationAddress')}
+                    helperText={getFieldError('passport.registrationAddress')}
+                  />
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+        );
+      case 2:
+        return (
+          <Card sx={{ mb: 2 }}>
+            <CardHeader 
+              title="Данные автомобиля" 
+              avatar={<CarIcon sx={{ color: 'primary.main' }} />}
+              sx={{ 
+                background: 'linear-gradient(135deg, #f8fafc 0%, #e3f2fd 100%)',
+                '& .MuiCardHeader-title': { fontWeight: 600 }
+              }}
+            />
+            <CardContent>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Марка"
+                    name="make"
+                    value={vehicle.make}
+                    onChange={handleVehicleChange}
+                    error={!!getFieldError('vehicle.make')}
+                    helperText={getFieldError('vehicle.make')}
+                    required
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Модель"
+                    name="model"
+                    value={vehicle.model}
+                    onChange={handleVehicleChange}
+                    error={!!getFieldError('vehicle.model')}
+                    helperText={getFieldError('vehicle.model')}
+                    required
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Гос. номер"
+                    name="licensePlate"
+                    value={vehicle.licensePlate}
+                    onChange={handleVehicleChange}
+                    error={!!getFieldError('vehicle.licensePlate')}
+                    helperText={getFieldError('vehicle.licensePlate')}
+                    required
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="VIN"
+                    name="vin"
+                    value={vehicle.vin}
+                    onChange={handleVehicleChange}
+                    error={!!getFieldError('vehicle.vin')}
+                    helperText={getFieldError('vehicle.vin')}
+                    required
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Год выпуска"
+                    name="year"
+                    type="number"
+                    value={vehicle.year}
+                    onChange={handleVehicleChange}
+                    error={!!getFieldError('vehicle.year')}
+                    helperText={getFieldError('vehicle.year')}
+                    required
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Тип ТС"
+                    name="type"
+                    value={vehicle.type}
+                    onChange={handleVehicleChange}
+                    error={!!getFieldError('vehicle.type')}
+                    helperText={getFieldError('vehicle.type')}
+                    required
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Цвет кузова"
+                    name="bodyColor"
+                    value={vehicle.bodyColor}
+                    onChange={handleVehicleChange}
+                    error={!!getFieldError('vehicle.bodyColor')}
+                    helperText={getFieldError('vehicle.bodyColor')}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Номер ПТС"
+                    name="ptsNumber"
+                    value={vehicle.ptsNumber}
+                    onChange={handleVehicleChange}
+                    error={!!getFieldError('vehicle.ptsNumber')}
+                    helperText={getFieldError('vehicle.ptsNumber')}
+                    required
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Номер СТС"
+                    name="stsNumber"
+                    value={vehicle.stsNumber}
+                    onChange={handleVehicleChange}
+                    error={!!getFieldError('vehicle.stsNumber')}
+                    helperText={getFieldError('vehicle.stsNumber')}
+                    required
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Кем и когда выдано СТС"
+                    name="stsIssueInfo"
+                    value={vehicle.stsIssueInfo}
+                    onChange={handleVehicleChange}
+                    error={!!getFieldError('vehicle.stsIssueInfo')}
+                    helperText={getFieldError('vehicle.stsIssueInfo')}
+                    required
+                  />
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+        );
+      case 3:
+        return (
+          <Card sx={{ mb: 2 }}>
+            <CardHeader 
+              title="Водительские права" 
+              avatar={<LicenseIcon sx={{ color: 'primary.main' }} />}
+              sx={{ 
+                background: 'linear-gradient(135deg, #f8fafc 0%, #e3f2fd 100%)',
+                '& .MuiCardHeader-title': { fontWeight: 600 }
+              }}
+            />
+            <CardContent>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Серия"
+                    name="series"
+                    value={driverLicense.series}
+                    onChange={handleDriverLicenseChange}
+                    error={!!getFieldError('driverLicense.series')}
+                    helperText={getFieldError('driverLicense.series')}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Номер"
+                    name="number"
+                    value={driverLicense.number}
+                    onChange={handleDriverLicenseChange}
+                    error={!!getFieldError('driverLicense.number')}
+                    helperText={getFieldError('driverLicense.number')}
+                    required
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <DatePicker
+                    label="Дата выдачи"
+                    value={driverLicense.issueDate}
+                    onChange={createDateChangeHandler(setDriverLicense, 'issueDate')}
+                    sx={{ width: '100%' }}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <DatePicker
+                    label="Дата окончания срока"
+                    value={driverLicense.expiryDate}
+                    onChange={createDateChangeHandler(setDriverLicense, 'expiryDate')}
+                    sx={{ width: '100%' }}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Категории"
+                    name="categories"
+                    value={driverLicense.categories}
+                    onChange={handleDriverLicenseChange}
+                    error={!!getFieldError('driverLicense.categories')}
+                    helperText={getFieldError('driverLicense.categories')}
+                  />
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+        );
+      case 4:
+        return (
+          <Card sx={{ mb: 2 }}>
+            <CardHeader 
+              title="Договор аренды" 
+              avatar={<DocumentIcon sx={{ color: 'primary.main' }} />}
+              sx={{ 
+                background: 'linear-gradient(135deg, #f8fafc 0%, #e3f2fd 100%)',
+                '& .MuiCardHeader-title': { fontWeight: 600 }
+              }}
+            />
+            <CardContent>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Номер договора"
+                    name="number"
+                    value={leaseAgreement.number}
+                    onChange={handleLeaseAgreementChange}
+                    error={!!getFieldError('leaseAgreement.number')}
+                    helperText={getFieldError('leaseAgreement.number')}
+                    required
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <DatePicker
+                    label="Дата договора"
+                    value={leaseAgreement.date}
+                    onChange={createDateChangeHandler(setLeaseAgreement, 'date')}
+                    sx={{ width: '100%' }}
+                  />
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
-    <>
-      <Box sx={{ my: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom>Карточка водителя</Typography>
-        <Typography variant="subtitle1" color="text.secondary" gutterBottom>Заполните все необходимые поля.</Typography>
-      </Box>
+    <Box sx={{ my: 4 }}>
+      <Paper 
+        elevation={0}
+        sx={{ 
+          p: 3,
+          background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+          borderRadius: 2,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+        }}
+      >
+        <Typography 
+          variant="h4" 
+          component="h1" 
+          gutterBottom
+          sx={{ 
+            textAlign: 'center',
+            mb: 4,
+            background: 'linear-gradient(135deg, #1976d2 0%, #42a5f5 100%)',
+            backgroundClip: 'text',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            fontWeight: 600
+          }}
+        >
+          Создание нового водителя
+        </Typography>
 
-      <Box component="form" noValidate autoComplete="off">
-        {/* --- Личные данные --- */}
-        <Typography variant="h6" gutterBottom sx={{ mt: 4 }}>1. Личные данные</Typography>
-        <Grid container spacing={2}>
-          <Grid xs={12} sm={4}><TextField required fullWidth name="lastName" label="Фамилия" value={personalData.lastName} onChange={handlePersonalDataChange} error={!!errors['personalData.lastName']} helperText={errors['personalData.lastName']} disabled={isLoading} /></Grid>
-          <Grid xs={12} sm={4}><TextField required fullWidth name="firstName" label="Имя" value={personalData.firstName} onChange={handlePersonalDataChange} error={!!errors['personalData.firstName']} helperText={errors['personalData.firstName']} disabled={isLoading} /></Grid>
-          <Grid xs={12} sm={4}><TextField fullWidth name="patronymic" label="Отчество" value={personalData.patronymic} onChange={handlePersonalDataChange} disabled={isLoading} /></Grid>
-          <Grid xs={12} sm={6}><DatePicker label="Дата рождения" value={personalData.birthDate} onChange={createDateChangeHandler(setPersonalData, 'birthDate')} sx={{ width: '100%' }} slotProps={{ textField: { error: !!errors['personalData.birthDate'], helperText: errors['personalData.birthDate'], required: true } }} disabled={isLoading} /></Grid>
-        </Grid>
+        {formMessage && (
+          <Alert 
+            severity={formMessage.type} 
+            sx={{ mb: 3 }}
+            onClose={() => setFormMessage(null)}
+          >
+            {formMessage.text}
+          </Alert>
+        )}
 
-        {/* --- Документы --- */}
-        <Typography variant="h6" gutterBottom sx={{ mt: 4 }}>2. Документы</Typography>
-        <Divider sx={{ mb: 2 }}><Typography variant="subtitle2">Паспорт</Typography></Divider>
-        <Grid container spacing={2}>
-          <Grid xs={6} sm={3}><TextField required fullWidth name="series" label="Серия паспорта" value={passport.series} onChange={handlePassportChange} error={!!errors['passport.series']} helperText={errors['passport.series']} disabled={isLoading} /></Grid>
-          <Grid xs={6} sm={3}><TextField required fullWidth name="number" label="Номер паспорта" value={passport.number} onChange={handlePassportChange} error={!!errors['passport.number']} helperText={errors['passport.number']} disabled={isLoading} /></Grid>
-          <Grid xs={12} sm={6}><DatePicker label="Дата выдачи паспорта" value={passport.issueDate} onChange={createDateChangeHandler(setPassport, 'issueDate')} sx={{ width: '100%' }} slotProps={{ textField: { error: !!errors['passport.issueDate'], helperText: errors['passport.issueDate'], required: true } }} disabled={isLoading} /></Grid>
-          <Grid xs={12} sm={6}><TextField required fullWidth name="departmentCode" label="Код подразделения" value={passport.departmentCode} onChange={handlePassportChange} error={!!errors['passport.departmentCode']} helperText={errors['passport.departmentCode']} disabled={isLoading} /></Grid>
-          <Grid xs={12} sm={6}><TextField required fullWidth name="issuedBy" label="Кем выдан" value={passport.issuedBy} onChange={handlePassportChange} error={!!errors['passport.issuedBy']} helperText={errors['passport.issuedBy']} disabled={isLoading} /></Grid>
-          <Grid xs={12}><TextField fullWidth name="registrationAddress" label="Адрес прописки" value={passport.registrationAddress} onChange={handlePassportChange} error={!!errors['passport.registrationAddress']} helperText={errors['passport.registrationAddress']} disabled={isLoading} /></Grid>
-        </Grid>
-        
-        <Divider sx={{ my: 2 }}><Typography variant="subtitle2">Водительское удостоверение</Typography></Divider>
-        <Grid container spacing={2}>
-            <Grid xs={6} sm={3}><TextField fullWidth name="series" label="Серия ВУ" value={driverLicense.series} onChange={handleDriverLicenseChange} disabled={isLoading} /></Grid>
-            <Grid xs={6} sm={3}><TextField fullWidth name="number" label="Номер ВУ" value={driverLicense.number} onChange={handleDriverLicenseChange} error={!!errors['driverLicense.number']} helperText={errors['driverLicense.number']} disabled={isLoading} /></Grid>
-            <Grid xs={12} sm={6}><TextField fullWidth name="categories" label="Категории ВУ" value={driverLicense.categories} onChange={handleDriverLicenseChange} disabled={isLoading} /></Grid>
-            <Grid xs={12} sm={6}><DatePicker label="Дата выдачи ВУ" value={driverLicense.issueDate} onChange={createDateChangeHandler(setDriverLicense, 'issueDate')} sx={{ width: '100%' }} disabled={isLoading} /></Grid>
-            <Grid xs={12} sm={6}><DatePicker label="Срок действия ВУ" value={driverLicense.expiryDate} onChange={createDateChangeHandler(setDriverLicense, 'expiryDate')} sx={{ width: '100%' }} disabled={isLoading} /></Grid>
-        </Grid>
+        {isMobile ? (
+          // Мобильный вид - степпер
+          <Stepper activeStep={activeStep} orientation="vertical">
+            {steps.map((step, index) => (
+              <Step key={step.label}>
+                <StepLabel 
+                  icon={step.icon}
+                  sx={{ 
+                    '& .MuiStepLabel-label': { fontWeight: 600 },
+                    '& .MuiStepLabel-iconContainer': { color: 'primary.main' }
+                  }}
+                >
+                  {step.label}
+                </StepLabel>
+                <StepContent>
+                  {renderStepContent(index)}
+                  <Box sx={{ mb: 2, mt: 2 }}>
+                    <Button
+                      variant="contained"
+                      onClick={index === steps.length - 1 ? handleSubmit : handleNext}
+                      disabled={isLoading}
+                      sx={{ mr: 1 }}
+                    >
+                      {index === steps.length - 1 ? 'Создать водителя' : 'Далее'}
+                    </Button>
+                    <Button
+                      disabled={index === 0}
+                      onClick={handleBack}
+                      sx={{ mr: 1 }}
+                    >
+                      Назад
+                    </Button>
+                  </Box>
+                </StepContent>
+              </Step>
+            ))}
+          </Stepper>
+        ) : (
+          // Десктопный вид - все секции сразу
+          <>
+            {renderStepContent(0)}
+            {renderStepContent(1)}
+            {renderStepContent(2)}
+            {renderStepContent(3)}
+            {renderStepContent(4)}
+          </>
+        )}
 
-        <Divider sx={{ my: 2 }}><Typography variant="subtitle2">Договор аренды</Typography></Divider>
-        <Grid container spacing={2}>
-            <Grid xs={12} sm={6}><TextField fullWidth name="number" label="Номер договора" value={leaseAgreement.number} onChange={handleLeaseAgreementChange} error={!!errors['leaseAgreement.number']} helperText={errors['leaseAgreement.number']} disabled={isLoading} /></Grid>
-            <Grid xs={12} sm={6}><DatePicker label="Дата договора" value={leaseAgreement.date} onChange={createDateChangeHandler(setLeaseAgreement, 'date')} sx={{ width: '100%' }} disabled={isLoading} /></Grid>
-        </Grid>
-
-        {/* --- Данные по автомобилю --- */}
-        <Typography variant="h6" gutterBottom sx={{ mt: 4 }}>3. Данные по автомобилю</Typography>
-        <Grid container spacing={2}>
-            <Grid xs={12} sm={6}><TextField required fullWidth name="make" label="Марка" value={vehicle.make} onChange={handleVehicleChange} error={!!errors['vehicle.make']} helperText={errors['vehicle.make']} disabled={isLoading} /></Grid>
-            <Grid xs={12} sm={6}><TextField required fullWidth name="model" label="Модель" value={vehicle.model} onChange={handleVehicleChange} error={!!errors['vehicle.model']} helperText={errors['vehicle.model']} disabled={isLoading} /></Grid>
-            <Grid xs={12} sm={4}><TextField required fullWidth name="licensePlate" label="Рег. знак" value={vehicle.licensePlate} onChange={handleVehicleChange} error={!!errors['vehicle.licensePlate']} helperText={errors['vehicle.licensePlate']} disabled={isLoading} /></Grid>
-            <Grid xs={12} sm={4}><TextField required fullWidth name="year" label="Год выпуска" type="number" value={vehicle.year} onChange={handleVehicleChange} error={!!errors['vehicle.year']} helperText={errors['vehicle.year']} disabled={isLoading} /></Grid>
-            <Grid xs={12} sm={4}><TextField required fullWidth name="bodyColor" label="Цвет кузова" value={vehicle.bodyColor} onChange={handleVehicleChange} error={!!errors['vehicle.bodyColor']} helperText={errors['vehicle.bodyColor']} disabled={isLoading} /></Grid>
-            <Grid xs={12}><TextField required fullWidth name="vin" label="Идентификационный номер (VIN)" value={vehicle.vin} onChange={handleVehicleChange} error={!!errors['vehicle.vin']} helperText={errors['vehicle.vin']} disabled={isLoading} /></Grid>
-            <Grid xs={12} sm={6}><TextField required fullWidth name="type" label="Наименование (тип ТС)" value={vehicle.type} onChange={handleVehicleChange} error={!!errors['vehicle.type']} helperText={errors['vehicle.type']} disabled={isLoading} /></Grid>
-            <Grid xs={12} sm={6}><TextField fullWidth name="chassis" label="Шасси (рама)" value={vehicle.chassis} onChange={handleVehicleChange} disabled={isLoading} /></Grid>
-            <Grid xs={12} sm={6}><TextField fullWidth name="bodyNumber" label="Кузов (кабина, прицеп) №" value={vehicle.bodyNumber} onChange={handleVehicleChange} disabled={isLoading} /></Grid>
-            <Grid xs={12} sm={6}><TextField required fullWidth name="ptsNumber" label="ПТС, номер" value={vehicle.ptsNumber} onChange={handleVehicleChange} error={!!errors['vehicle.ptsNumber']} helperText={errors['vehicle.ptsNumber']} disabled={isLoading} /></Grid>
-            <Grid xs={12} sm={6}><TextField required fullWidth name="stsNumber" label="СТС, номер" value={vehicle.stsNumber} onChange={handleVehicleChange} error={!!errors['vehicle.stsNumber']} helperText={errors['vehicle.stsNumber']} disabled={isLoading} /></Grid>
-            <Grid xs={12} sm={6}><TextField required fullWidth name="stsIssueInfo" label="СТС, когда кем выдано" value={vehicle.stsIssueInfo} onChange={handleVehicleChange} error={!!errors['vehicle.stsIssueInfo']} helperText={errors['vehicle.stsIssueInfo']} disabled={isLoading} /></Grid>
-        </Grid>
-
-        <Divider sx={{ my: 4 }} />
-        {formMessage && <Alert severity={formMessage.type} sx={{ mb: 2 }}>{formMessage.text}</Alert>}
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <Button variant="contained" size="large" onClick={handleSubmit} disabled={isLoading}>
-            {isLoading ? <CircularProgress size={24} /> : 'Создать водителя'}
-          </Button>
-        </Box>
-      </Box>
-    </>
+        {!isMobile && (
+          <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center', gap: 2 }}>
+            <Button
+              variant="outlined"
+              onClick={resetForm}
+              startIcon={<ClearIcon />}
+              size="large"
+              sx={{ 
+                minWidth: 150,
+                borderColor: 'error.main',
+                color: 'error.main',
+                '&:hover': {
+                  borderColor: 'error.dark',
+                  backgroundColor: 'error.light',
+                  color: 'error.dark'
+                }
+              }}
+            >
+              Очистить
+            </Button>
+            <Button
+              variant="contained"
+              onClick={handleSubmit}
+              disabled={isLoading}
+              startIcon={isLoading ? <CircularProgress size={20} /> : <SaveIcon />}
+              size="large"
+              sx={{ 
+                minWidth: 200,
+                background: 'linear-gradient(135deg, #1976d2 0%, #42a5f5 100%)',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #1565c0 0%, #1976d2 100%)',
+                }
+              }}
+            >
+              {isLoading ? 'Создание...' : 'Создать водителя'}
+            </Button>
+          </Box>
+        )}
+      </Paper>
+    </Box>
   );
 }

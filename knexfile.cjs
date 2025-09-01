@@ -5,17 +5,13 @@ module.exports = {
   development: {
     client: 'sqlite3',
     connection: {
-      filename: './drivers.db'
+      filename: path.join(__dirname, 'drivers.db')
     },
     useNullAsDefault: true,
     migrations: {
-      directory: './src/database/migrations'
-    },
-    seeds: {
-      directory: './src/database/seeds'
+      directory: path.join(__dirname, 'src/database/migrations')
     }
   },
-  
   test: {
     client: 'sqlite3',
     connection: {
@@ -23,10 +19,7 @@ module.exports = {
     },
     useNullAsDefault: true,
     migrations: {
-      directory: './src/database/migrations'
-    },
-    seeds: {
-      directory: './src/database/seeds'
+      directory: path.join(__dirname, 'src/database/migrations')
     }
   }
 };

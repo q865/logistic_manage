@@ -5,7 +5,7 @@ import { Typography, Box, TextField, Button, Divider, Alert, CircularProgress } 
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs, { Dayjs } from 'dayjs';
 import axios from 'axios';
-import type { Driver, PersonalData, Passport, Vehicle, DriverLicense, LeaseAgreement } from '../types.js';
+import type { Driver } from '../types.js';
 
 const API_URL = 'http://localhost:3000/api/drivers';
 
@@ -39,6 +39,9 @@ export function DriverEditForm({ driverId, onUpdateSuccess, onCancel }: DriverEd
         if (driverData.passport?.issueDate) {
           driverData.passport.issueDate = dayjs(driverData.passport.issueDate);
         }
+        if (driverData.leaseAgreement?.date) {
+          driverData.leaseAgreement.date = dayjs(driverData.leaseAgreement.date);
+        }
         setFormData(driverData);
       } catch (error) {
         console.error('Ошибка загрузки данных:', error);
@@ -58,6 +61,7 @@ export function DriverEditForm({ driverId, onUpdateSuccess, onCancel }: DriverEd
       [section]: { ...prev[section], [name]: value }
     }));
   };
+  
   const createDateChangeHandler = <T extends keyof Driver>(section: T, fieldName: keyof (Driver[T])) => (newValue: Dayjs | null) => {
     setFormData(prev => ({
       ...prev,
@@ -70,17 +74,55 @@ export function DriverEditForm({ driverId, onUpdateSuccess, onCancel }: DriverEd
     setErrors({});
     setIsLoading(true);
 
-    // Готовим данные к отправке
-    const updatePayload = {
-      ...formData,
-      personalData: { ...formData.personalData, birthDate: formData.personalData?.birthDate?.format('YYYY-MM-DD') },
-      passport: { ...formData.passport, issueDate: formData.passport?.issueDate?.format('YYYY-MM-DD') },
-      leaseAgreement: { ...formData.leaseAgreement, date: formData.leaseAgreement?.date ? dayjs(formData.leaseAgreement.date).format('YYYY-MM-DD') : null },
-      vehicle: { ...formData.vehicle, year: parseInt(formData.vehicle?.year, 10) || 0 },
-    };
-    
     try {
-      await axios.put(`${API_URL}/${driverId}`, updatePayload);
+      // Создаем объект для обновления
+      const updateData: Record<string, unknown> = {};
+      
+      if (formData.personalData) {
+        updateData.personalData = {
+          lastName: formData.personalData.lastName,
+          firstName: formData.personalData.firstName,
+          patronymic: formData.personalData.patronymic,
+          birthDate: formData.personalData.birthDate?.format('YYYY-MM-DD')
+        };
+      }
+      
+      if (formData.passport) {
+        updateData.passport = {
+          series: formData.passport.series,
+          number: formData.passport.number,
+          issuedBy: formData.passport.issuedBy,
+          issueDate: formData.passport.issueDate?.format('YYYY-MM-DD'),
+          departmentCode: formData.passport.departmentCode,
+          registrationAddress: formData.passport.registrationAddress
+        };
+      }
+      
+      if (formData.leaseAgreement) {
+        updateData.leaseAgreement = {
+          number: formData.leaseAgreement.number,
+          date: formData.leaseAgreement.date ? dayjs(formData.leaseAgreement.date).format('YYYY-MM-DD') : null
+        };
+      }
+      
+      if (formData.vehicle) {
+        updateData.vehicle = {
+          make: formData.vehicle.make,
+          model: formData.vehicle.model,
+          licensePlate: formData.vehicle.licensePlate,
+          vin: formData.vehicle.vin,
+          year: parseInt(String(formData.vehicle.year), 10) || 0,
+          type: formData.vehicle.type,
+          chassis: formData.vehicle.chassis,
+          bodyColor: formData.vehicle.bodyColor,
+          bodyNumber: formData.vehicle.bodyNumber,
+          ptsNumber: formData.vehicle.ptsNumber,
+          stsNumber: formData.vehicle.stsNumber,
+          stsIssueInfo: formData.vehicle.stsIssueInfo
+        };
+      }
+      
+      await axios.put(`${API_URL}/${driverId}`, updateData);
       
       // Отправляем уведомление через веб-хук
       try {
@@ -97,7 +139,11 @@ export function DriverEditForm({ driverId, onUpdateSuccess, onCancel }: DriverEd
     } catch (error) {
       if (axios.isAxiosError(error) && error.response?.status === 400) {
         const newErrors: Record<string, string> = {};
-        error.response.data.errors.forEach((err: any) => { newErrors[err.path] = err.msg; });
+        if (error.response.data.errors) {
+          error.response.data.errors.forEach((err: { path: string; msg: string }) => { 
+            newErrors[err.path] = err.msg; 
+          });
+        }
         setErrors(newErrors);
         setFormMessage({ type: 'error', text: 'Пожалуйста, исправьте ошибки в форме.' });
       } else {
@@ -131,11 +177,7 @@ export function DriverEditForm({ driverId, onUpdateSuccess, onCancel }: DriverEd
         {/* --- Документы и т.д. (аналогично форме создания) --- */}
         <Typography variant="h6" gutterBottom sx={{ mt: 4 }}>2. Документы</Typography>
 
-
-
         <Box display="flex" flexWrap="wrap" gap={2}>
-        
-
           <Box flex="1 1 calc(50% - 16px)" minWidth={200}><TextField fullWidth name="number" label="Номер ВУ" value={formData.driverLicense?.number || ''} onChange={createChangeHandler('driverLicense')} error={!!errors['driverLicense.number']} helperText={errors['driverLicense.number']} disabled={isLoading} /></Box>
           <Box flex="1 1 calc(50% - 16px)" minWidth={200}><TextField fullWidth name="number" label="Номер договора аренды" value={formData.leaseAgreement?.number || ''} onChange={createChangeHandler('leaseAgreement')} error={!!errors['leaseAgreement.number']} helperText={errors['leaseAgreement.number']} disabled={isLoading} /></Box>
           <Box flex="1 1 calc(25% - 16px)" minWidth={150}><TextField required fullWidth name="series" label="Серия паспорта" value={formData.passport?.series || ''} onChange={createChangeHandler('passport')} error={!!errors['passport.series']} helperText={errors['passport.series']} disabled={isLoading} /></Box>
@@ -147,12 +189,6 @@ export function DriverEditForm({ driverId, onUpdateSuccess, onCancel }: DriverEd
         </Box>
 
         <Typography variant="h6" gutterBottom sx={{ mt: 4 }}>3. Данные по автомобилю</Typography>
-        {/* Отладочная информация */}
-        <Box sx={{ mb: 2, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
-          <Typography variant="body2" color="text.secondary">
-            Отладка: formData.vehicle = {JSON.stringify(formData.vehicle, null, 2)}
-          </Typography>
-        </Box>
         <Box display="flex" flexWrap="wrap" gap={2}>
             <Box flex="1 1 calc(50% - 16px)" minWidth={200}><TextField required fullWidth name="make" label="Марка" value={formData.vehicle?.make || ''} onChange={createChangeHandler('vehicle')} error={!!errors['vehicle.make']} helperText={errors['vehicle.make']} disabled={isLoading} /></Box>
             <Box flex="1 1 calc(50% - 16px)" minWidth={200}><TextField required fullWidth name="model" label="Модель" value={formData.vehicle?.model || ''} onChange={createChangeHandler('vehicle')} error={!!errors['vehicle.model']} helperText={errors['vehicle.model']} disabled={isLoading} /></Box>
@@ -166,6 +202,12 @@ export function DriverEditForm({ driverId, onUpdateSuccess, onCancel }: DriverEd
             <Box flex="1 1 calc(50% - 16px)" minWidth={200}><TextField required fullWidth name="ptsNumber" label="ПТС, номер" value={formData.vehicle?.ptsNumber || ''} onChange={createChangeHandler('vehicle')} error={!!errors['vehicle.ptsNumber']} helperText={errors['vehicle.ptsNumber']} disabled={isLoading} /></Box>
             <Box flex="1 1 calc(50% - 16px)" minWidth={200}><TextField required fullWidth name="stsNumber" label="СТС, номер" value={formData.vehicle?.stsNumber || ''} onChange={createChangeHandler('vehicle')} error={!!errors['vehicle.stsNumber']} helperText={errors['vehicle.stsNumber']} disabled={isLoading} /></Box>
             <Box flex="1 1 calc(50% - 16px)" minWidth={200}><TextField required fullWidth name="stsIssueInfo" label="СТС, когда кем выдано" value={formData.vehicle?.stsIssueInfo || ''} onChange={createChangeHandler('vehicle')} error={!!errors['vehicle.stsIssueInfo']} helperText={errors['vehicle.stsIssueInfo']} disabled={isLoading} /></Box>
+        </Box>
+
+        {/* --- Договор аренды --- */}
+        <Typography variant="h6" gutterBottom sx={{ mt: 4 }}>4. Договор аренды</Typography>
+        <Box display="flex" flexWrap="wrap" gap={2}>
+          <Box flex="1 1 calc(50% - 16px)" minWidth={200}><DatePicker label="Дата договора аренды" value={formData.leaseAgreement?.date || null} onChange={createDateChangeHandler('leaseAgreement', 'date')} sx={{ width: '100%' }} disabled={isLoading} /></Box>
         </Box>
 
         <Divider sx={{ my: 4 }} />

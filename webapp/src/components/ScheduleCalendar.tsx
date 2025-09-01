@@ -1,9 +1,8 @@
 // webapp/src/components/ScheduleCalendar.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Paper,
-  Grid,
   Typography,
   IconButton,
   Chip,
@@ -24,14 +23,13 @@ import {
 import {
   ChevronLeft as ChevronLeftIcon,
   ChevronRight as ChevronRightIcon,
-  Add as AddIcon,
-  Edit as EditIcon,
-  Delete as DeleteIcon
+  Add as AddIcon
 } from '@mui/icons-material';
 import { DatePicker, TimePicker } from '@mui/x-date-pickers';
 import dayjs, { Dayjs } from 'dayjs';
 import axios from 'axios';
 import type { CalendarMonth, ScheduleWithDriver, ScheduleStatus } from '../types.js';
+
 
 import { SCHEDULE_STATUSES } from '../constants.js';
 
@@ -86,9 +84,11 @@ export function ScheduleCalendar({ onScheduleChange }: ScheduleCalendarProps) {
     }
   };
 
+  const loadCalendarCallback = useCallback(loadCalendar, [currentDate]);
+
   useEffect(() => {
-    loadCalendar();
-  }, [currentDate]);
+    loadCalendarCallback();
+  }, [loadCalendarCallback]);
 
   useEffect(() => {
     loadDrivers();
@@ -234,11 +234,6 @@ export function ScheduleCalendar({ onScheduleChange }: ScheduleCalendarProps) {
     return SCHEDULE_STATUSES[status].color;
   };
 
-  // Получение иконки статуса
-  const getStatusIcon = (status: ScheduleStatus) => {
-    return SCHEDULE_STATUSES[status].icon;
-  };
-
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
@@ -262,25 +257,83 @@ export function ScheduleCalendar({ onScheduleChange }: ScheduleCalendarProps) {
   return (
     <Box>
       {/* Заголовок календаря */}
-      <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-        <Typography variant="h5" component="h2">
+      <Box 
+        sx={{ 
+          display: 'flex', 
+          flexDirection: { xs: 'column', sm: 'row' },
+          alignItems: { xs: 'stretch', sm: 'center' }, 
+          justifyContent: 'space-between', 
+          mb: 3,
+          background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+          p: 3,
+          borderRadius: 2,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+          gap: 2
+        }}
+      >
+        <Typography 
+          variant="h5" 
+          component="h2"
+          sx={{ 
+            background: 'linear-gradient(135deg, #1976d2 0%, #42a5f5 100%)',
+            backgroundClip: 'text',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            fontWeight: 600,
+            textAlign: { xs: 'center', sm: 'left' }
+          }}
+        >
           График работы водителей
         </Typography>
-        <Box display="flex" alignItems="center">
-          <IconButton onClick={goToPreviousMonth}>
+        <Box 
+          display="flex" 
+          alignItems="center"
+          sx={{ 
+            justifyContent: { xs: 'center', sm: 'flex-end' },
+            gap: 1
+          }}
+        >
+          <IconButton 
+            onClick={goToPreviousMonth}
+            sx={{ 
+              background: 'linear-gradient(135deg, #1976d2 0%, #42a5f5 100%)',
+              color: 'white',
+              '&:hover': {
+                background: 'linear-gradient(135deg, #1565c0 0%, #1976d2 100%)',
+              }
+            }}
+          >
             <ChevronLeftIcon />
           </IconButton>
-          <Typography variant="h6" sx={{ mx: 2 }}>
+          <Typography 
+            variant="h6" 
+            sx={{ 
+              mx: 2,
+              minWidth: { xs: '120px', sm: 'auto' },
+              textAlign: 'center',
+              fontWeight: 600,
+              color: 'text.primary'
+            }}
+          >
             {currentDate.format('MMMM YYYY')}
           </Typography>
-          <IconButton onClick={goToNextMonth}>
+          <IconButton 
+            onClick={goToNextMonth}
+            sx={{ 
+              background: 'linear-gradient(135deg, #1976d2 0%, #42a5f5 100%)',
+              color: 'white',
+              '&:hover': {
+                background: 'linear-gradient(135deg, #1565c0 0%, #1976d2 100%)',
+              }
+            }}
+          >
             <ChevronRightIcon />
           </IconButton>
         </Box>
       </Box>
 
       {/* Календарь */}
-      <Paper elevation={2}>
+      <Paper elevation={2} sx={{ borderRadius: 2, overflow: 'hidden' }}>
         {/* Дни недели */}
         <Box display="flex">
           {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map(day => (
@@ -289,11 +342,21 @@ export function ScheduleCalendar({ onScheduleChange }: ScheduleCalendarProps) {
               flex={1}
               p={1}
               textAlign="center"
-              bgcolor="grey.100"
-              borderBottom={1}
-              borderColor="divider"
+              sx={{
+                background: 'linear-gradient(135deg, #f8fafc 0%, #e3f2fd 100%)',
+                borderBottom: 1,
+                borderColor: 'divider',
+                minHeight: { xs: 40, sm: 50 }
+              }}
             >
-              <Typography variant="subtitle2" fontWeight="bold">
+              <Typography 
+                variant="subtitle2" 
+                fontWeight="bold"
+                sx={{ 
+                  fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                  color: 'text.primary'
+                }}
+              >
                 {day}
               </Typography>
             </Box>
@@ -308,27 +371,44 @@ export function ScheduleCalendar({ onScheduleChange }: ScheduleCalendarProps) {
                 key={dayIndex}
                 flex={1}
                 p={1}
-                minHeight={120}
+                minHeight={{ xs: 100, sm: 120 }}
                 border={1}
                 borderColor="divider"
-                bgcolor={day.isToday ? 'primary.light' : day.isWeekend ? 'grey.50' : 'white'}
-                position="relative"
+                sx={{
+                  background: day.isToday 
+                    ? 'linear-gradient(135deg, #1976d2 0%, #42a5f5 100%)' 
+                    : day.isWeekend 
+                    ? 'linear-gradient(135deg, #fff5f5 0%, #fef2f2 100%)' 
+                    : 'linear-gradient(135deg, #ffffff 0%, #fafbfc 100%)',
+                  position: 'relative',
+                  transition: 'all 0.2s ease',
+                  '&:hover': {
+                    transform: 'scale(1.02)',
+                    zIndex: 1,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  }
+                }}
               >
                 {/* Дата */}
                 <Typography
                   variant="body2"
-                  color={day.isToday ? 'white' : day.isWeekend ? 'error.main' : 'text.primary'}
-                  fontWeight={day.isToday ? 'bold' : 'normal'}
+                  sx={{
+                    color: day.isToday ? 'white' : day.isWeekend ? 'error.main' : 'text.primary',
+                    fontWeight: day.isToday ? 'bold' : 'normal',
+                    fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                    mb: 1
+                  }}
                 >
                   {dayjs(day.date).format('D')}
                 </Typography>
 
                 {/* Графики */}
-                <Box mt={1}>
-                  {day.schedules.map((schedule, index) => (
+                <Box mt={1} sx={{ maxHeight: { xs: 60, sm: 80 }, overflow: 'hidden' }}>
+                  {day.schedules.map((schedule) => (
                     <Tooltip
                       key={schedule.id}
                       title={`${schedule.driver.personalData.lastName} ${schedule.driver.personalData.firstName} - ${schedule.start_time}-${schedule.end_time}`}
+                      arrow
                     >
                       <Chip
                         label={`${schedule.driver.personalData.lastName} ${schedule.start_time}`}
@@ -337,11 +417,18 @@ export function ScheduleCalendar({ onScheduleChange }: ScheduleCalendarProps) {
                           mb: 0.5,
                           backgroundColor: getStatusColor(schedule.status),
                           color: 'white',
-                          fontSize: '0.7rem',
+                          fontSize: { xs: '0.6rem', sm: '0.7rem' },
                           maxWidth: '100%',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          '&:hover': {
+                            transform: 'scale(1.05)',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                          },
                           '& .MuiChip-label': {
                             overflow: 'hidden',
-                            textOverflow: 'ellipsis'
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
                           }
                         }}
                         onClick={() => handleEditSchedule(schedule)}
@@ -353,16 +440,23 @@ export function ScheduleCalendar({ onScheduleChange }: ScheduleCalendarProps) {
                 {/* Кнопка добавления */}
                 <IconButton
                   size="small"
+                  onClick={() => handleCreateSchedule(day.date)}
                   sx={{
                     position: 'absolute',
-                    bottom: 2,
-                    right: 2,
-                    opacity: 0.7,
-                    '&:hover': { opacity: 1 }
+                    bottom: 4,
+                    right: 4,
+                    background: 'linear-gradient(135deg, #4caf50 0%, #66bb6a 100%)',
+                    color: 'white',
+                    width: { xs: 24, sm: 28 },
+                    height: { xs: 24, sm: 28 },
+                    '&:hover': {
+                      background: 'linear-gradient(135deg, #388e3c 0%, #4caf50 100%)',
+                      transform: 'scale(1.1)',
+                    },
+                    transition: 'all 0.2s ease'
                   }}
-                  onClick={() => handleCreateSchedule(day.date)}
                 >
-                  <AddIcon fontSize="small" />
+                  <AddIcon sx={{ fontSize: { xs: '1rem', sm: '1.2rem' } }} />
                 </IconButton>
               </Box>
             ))}
@@ -370,104 +464,42 @@ export function ScheduleCalendar({ onScheduleChange }: ScheduleCalendarProps) {
         ))}
       </Paper>
 
-      {/* Диалог создания/редактирования графика */}
-      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>
-          {editingSchedule ? 'Редактировать график' : 'Создать график'}
-        </DialogTitle>
-        <DialogContent>
-          <Box display="flex" flexDirection="column" gap={2} mt={1}>
-            <DatePicker
-              label="Дата"
-              value={selectedDate}
-              onChange={(newValue) => setSelectedDate(newValue)}
-              sx={{ width: '100%' }}
+      {/* Легенда статусов */}
+      <Box 
+        sx={{ 
+          mt: 3,
+          p: 3,
+          background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+          borderRadius: 2,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+        }}
+      >
+        <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, mb: 2 }}>
+          Статусы графиков
+        </Typography>
+        <Box 
+          display="flex" 
+          flexWrap="wrap" 
+          gap={1}
+          sx={{ 
+            justifyContent: { xs: 'center', sm: 'flex-start' }
+          }}
+        >
+          {Object.entries(SCHEDULE_STATUSES).map(([status, config]) => (
+            <Chip
+              key={status}
+              label={config.label}
+              size="small"
+              sx={{
+                backgroundColor: getStatusColor(status as ScheduleStatus),
+                color: 'white',
+                fontWeight: 600,
+                fontSize: { xs: '0.7rem', sm: '0.8rem' }
+              }}
             />
-            
-            <FormControl fullWidth>
-              <InputLabel>Водитель</InputLabel>
-              <Select
-                value={selectedDriver}
-                onChange={(e) => setSelectedDriver(e.target.value)}
-                label="Водитель"
-              >
-                {drivers.map((driver) => (
-                  <MenuItem key={driver.id} value={driver.id}>
-                    {driver.personalData.lastName} {driver.personalData.firstName} {driver.personalData.patronymic || ''}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-
-            <Box display="flex" gap={2}>
-              <TimePicker
-                label="Время начала"
-                value={startTime}
-                onChange={(newValue) => setStartTime(newValue)}
-                sx={{ flex: 1 }}
-              />
-              <TimePicker
-                label="Время окончания"
-                value={endTime}
-                onChange={(newValue) => setEndTime(newValue)}
-                sx={{ flex: 1 }}
-              />
-            </Box>
-
-            <FormControl fullWidth>
-              <InputLabel>Статус</InputLabel>
-              <Select
-                value={status}
-                onChange={(e) => setStatus(e.target.value as ScheduleStatus)}
-                label="Статус"
-              >
-                {Object.entries(SCHEDULE_STATUSES).map(([key, value]) => (
-                  <MenuItem key={key} value={key}>
-                    {value.icon} {value.label}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-
-            <TextField
-              label="Информация о маршруте"
-              value={routeInfo}
-              onChange={(e) => setRouteInfo(e.target.value)}
-              multiline
-              rows={2}
-            />
-
-            <TextField
-              label="Заметки"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              multiline
-              rows={3}
-            />
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          {editingSchedule && (
-            <Button
-              color="error"
-              onClick={() => handleDeleteSchedule(editingSchedule.id)}
-              disabled={submitting}
-            >
-              Удалить
-            </Button>
-          )}
-          <Button onClick={() => setDialogOpen(false)} disabled={submitting}>
-            Отмена
-          </Button>
-          <Button
-            onClick={handleSaveSchedule}
-            variant="contained"
-            disabled={submitting || !selectedDate || !selectedDriver || !startTime || !endTime}
-          >
-            {submitting ? <CircularProgress size={20} /> : 'Сохранить'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+          ))}
+        </Box>
+      </Box>
     </Box>
   );
 }

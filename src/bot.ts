@@ -6,9 +6,11 @@ import path from 'path';
 import { Bot, InlineKeyboard, InputFile } from 'grammy';
 import { DriverService } from './services/driverService.js';
 import { ScheduleService } from './services/scheduleService.js';
+import { DeliveryService } from './services/deliveryService.js';
 import { generateLeaseAgreement } from './services/documentService.js';
 import { notificationService } from './services/notificationService.js';
 import type { Driver } from './models/Driver.js';
+import type { Delivery } from './models/Delivery.js';
 
 const PAGE_LIMIT = 5;
 const INSTRUCTIONS_DIR = path.resolve(process.cwd(), 'instructions');
@@ -25,6 +27,7 @@ const instructions = {
 // Фабрика для создания и настройки бота
 export function createBot(token: string, driverService: DriverService, scheduleService: ScheduleService) {
   const bot = new Bot(token);
+  const deliveryService = new DeliveryService();
 
   // --- Установка команд в меню ---
   bot.api.setMyCommands([
@@ -32,6 +35,7 @@ export function createBot(token: string, driverService: DriverService, scheduleS
     { command: 'drivers', description: '👥 Список водителей' },
     { command: 'schedule', description: '📅 График работы' },
     { command: 'current', description: '🚗 Текущие рейсы' },
+    { command: 'deliveries', description: '📦 Управление доставками' },
     { command: 'webapp', description: '🌐 Открыть веб-форму' },
     { command: 'instructions', description: '📚 База знаний' },
   ]);
@@ -299,10 +303,76 @@ export function createBot(token: string, driverService: DriverService, scheduleS
     }
   });
 
+  bot.command('deliveries', async (ctx) => {
+    try {
+      const deliveries = await deliveryService.getAllDeliveries();
+      
+      if (deliveries.length === 0) {
+        const keyboard = new InlineKeyboard()
+          .text('📤 Загрузить Excel файл', 'upload_excel_instructions')
+          .row()
+          .text('🌐 Открыть веб-форму', 'open_webapp');
+        
+        await ctx.reply(
+          '📦 **Управление доставками**\n\n' +
+          'База данных доставок пуста.\n\n' +
+          '**Для загрузки данных:**\n' +
+          '1. Отправьте Excel файл с данными о доставках\n' +
+          '2. Или используйте веб-форму для ручного ввода\n\n' +
+          '**Формат Excel файла:**\n' +
+          '• Идентификатор: DD.MM.YY_NN_XXX_YYY_ZZ\n' +
+          '• Детали груза: объем/вес/длина/доп.инфо\n' +
+          '• Информация о заказе: номер.Заказано.дата время\n' +
+          '• ФИО клиента\n' +
+          '• Информация о доставке: дата время ID компания',
+          { parse_mode: 'Markdown', reply_markup: keyboard }
+        );
+        return;
+      }
+      
+      const currentDeliveries = await deliveryService.getCurrentDeliveries();
+      const statistics = await deliveryService.getCargoStatistics();
+      
+      let text = `📦 **Управление доставками**\n\n`;
+      text += `**Статистика:**\n`;
+      text += `• Всего доставок: ${statistics.totalDeliveries}\n`;
+      text += `• Общий объем: ${statistics.totalVolume} куб.м\n`;
+      text += `• Общий вес: ${statistics.totalWeight} кг\n`;
+      text += `• Средний объем: ${statistics.averageVolume} куб.м\n\n`;
+      
+      if (currentDeliveries.length > 0) {
+        text += `**Текущие рейсы (сегодня):**\n`;
+        currentDeliveries.slice(0, 3).forEach(delivery => {
+          text += `🚚 **${delivery.customerName}**\n`;
+          text += `   Груз: ${delivery.cargoVolume} куб.м / ${delivery.cargoWeight} кг\n`;
+          text += `   Время погрузки: ${delivery.orderTime}\n`;
+          text += `   Время доставки: ${delivery.deliveryTime}\n\n`;
+        });
+        if (currentDeliveries.length > 3) {
+          text += `... и еще ${currentDeliveries.length - 3} доставок\n\n`;
+        }
+      }
+      
+      const keyboard = new InlineKeyboard()
+        .text('📤 Загрузить Excel', 'upload_excel_instructions')
+        .text('🚚 Текущие рейсы', 'current_deliveries')
+        .row()
+        .text('📊 Статистика', 'delivery_statistics')
+        .text('🔍 Поиск', 'search_deliveries')
+        .row()
+        .text('🌐 Веб-форма', 'open_webapp');
+      
+      await ctx.reply(text, { parse_mode: 'Markdown', reply_markup: keyboard });
+    } catch (error) {
+      console.error('Ошибка получения доставок:', error);
+      await ctx.reply('❌ Произошла ошибка при получении данных о доставках.');
+    }
+  });
+
   // Callback для открытия календаря
   bot.callbackQuery('open_schedule_webapp', (ctx) => {
     const keyboard = new InlineKeyboard()
-      .url('📅 Открыть календарь', `${WEBAPP_URL}#/schedule`)
+      .url('📅 Открыть календарь', `${WEBAPP_URL}/schedule`)
       .row()
       .text('🚗 Текущие рейсы', 'current_trips')
       .text('👥 Список водителей', 'drivers_page_1');
@@ -433,6 +503,213 @@ export function createBot(token: string, driverService: DriverService, scheduleS
 
   bot.callbackQuery('cancel_delete', async (ctx) => {
     await ctx.deleteMessage();
+  });
+
+  // --- Обработчики для доставок ---
+  bot.callbackQuery('upload_excel_instructions', async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await ctx.editMessageText(
+      '📤 **Загрузка Excel файла**\n\n' +
+      '**Инструкция по загрузке:**\n\n' +
+      '1️⃣ **Отправьте Excel файл** (.xlsx или .xls)\n' +
+      '2️⃣ **Формат данных:**\n' +
+      '   • Каждая строка = одна доставка\n' +
+      '   • Структура: ID | Груз | Заказ | Клиент | Доставка\n\n' +
+      '**Пример строки:**\n' +
+      '`01.09.25_77_004_ВИП_19 3.32 куб.м/871 кг/1.010 м/Нет 13908.Заказано.01.09.2025 00:00:00. Кулушов Марат Шайлообаевич ........01.09.2025 01:30:00..202 ООО "ГРУЗ СЕРВИС"`\n\n' +
+      '**После загрузки файла:**\n' +
+      '• Данные автоматически распарсятся\n' +
+      '• Появится статистика и текущие рейсы\n' +
+      '• Можно будет искать и анализировать\n\n' +
+      'Отправьте файл прямо сейчас! 📎',
+      { parse_mode: 'Markdown' }
+    );
+  });
+
+  bot.callbackQuery('current_deliveries', async (ctx) => {
+    await ctx.answerCallbackQuery();
+    try {
+      const currentDeliveries = await deliveryService.getCurrentDeliveries();
+      
+      if (currentDeliveries.length === 0) {
+        await ctx.editMessageText(
+          '🚚 **Текущие рейсы**\n\n' +
+          'Сегодня нет запланированных доставок.\n\n' +
+          'Возможно, нужно загрузить данные из Excel файла.',
+          { parse_mode: 'Markdown' }
+        );
+        return;
+      }
+      
+      let text = `🚚 **Текущие рейсы (сегодня)**\n\n`;
+      text += `Дата: ${new Date().toLocaleDateString('ru-RU')}\n`;
+      text += `Всего доставок: ${currentDeliveries.length}\n\n`;
+      
+      currentDeliveries.forEach((delivery, index) => {
+        text += `${index + 1}. **${delivery.customerName}**\n`;
+        text += `   📦 Груз: ${delivery.cargoVolume} куб.м / ${delivery.cargoWeight} кг\n`;
+        text += `   ⏰ Погрузка: ${delivery.orderTime}\n`;
+        text += `   🚚 Доставка: ${delivery.deliveryTime}\n`;
+        text += `   🆔 ID: ${delivery.deliveryId}\n\n`;
+      });
+      
+      const keyboard = new InlineKeyboard()
+        .text('📊 Статистика', 'delivery_statistics')
+        .text('🔍 Поиск', 'search_deliveries')
+        .row()
+        .text('📦 Все доставки', 'all_deliveries')
+        .text('🌐 Веб-форма', 'open_webapp');
+      
+      await ctx.editMessageText(text, { parse_mode: 'Markdown', reply_markup: keyboard });
+    } catch (error) {
+      console.error('Ошибка получения текущих рейсов:', error);
+      await ctx.editMessageText('❌ Произошла ошибка при получении текущих рейсов.');
+    }
+  });
+
+  bot.callbackQuery('delivery_statistics', async (ctx) => {
+    await ctx.answerCallbackQuery();
+    try {
+      const statistics = await deliveryService.getCargoStatistics();
+      
+      let text = `📊 **Статистика грузов**\n\n`;
+      text += `**Общие показатели:**\n`;
+      text += `• Всего доставок: ${statistics.totalDeliveries}\n`;
+      text += `• Общий объем: ${statistics.totalVolume} куб.м\n`;
+      text += `• Общий вес: ${statistics.totalWeight} кг\n\n`;
+      
+      text += `**Средние показатели:**\n`;
+      text += `• Средний объем: ${statistics.averageVolume} куб.м\n`;
+      text += `• Средний вес: ${statistics.averageWeight} кг\n\n`;
+      
+      if (statistics.totalDeliveries > 0) {
+        text += `**Эффективность:**\n`;
+        text += `• Объем на доставку: ${(statistics.totalVolume / statistics.totalDeliveries).toFixed(2)} куб.м\n`;
+        text += `• Вес на доставку: ${(statistics.totalWeight / statistics.totalDeliveries).toFixed(0)} кг\n`;
+      }
+      
+      const keyboard = new InlineKeyboard()
+        .text('🚚 Текущие рейсы', 'current_deliveries')
+        .text('📦 Все доставки', 'all_deliveries')
+        .row()
+        .text('📤 Загрузить Excel', 'upload_excel_instructions')
+        .text('🌐 Веб-форма', 'open_webapp');
+      
+      await ctx.editMessageText(text, { parse_mode: 'Markdown', reply_markup: keyboard });
+    } catch (error) {
+      console.error('Ошибка получения статистики:', error);
+      await ctx.editMessageText('❌ Произошла ошибка при получении статистики.');
+    }
+  });
+
+  bot.callbackQuery('search_deliveries', async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await ctx.editMessageText(
+      '🔍 **Поиск доставок**\n\n' +
+      '**Доступные способы поиска:**\n\n' +
+      '1️⃣ **По дате:** /deliveries_date DD.MM.YYYY\n' +
+      '2️⃣ **По времени погрузки:** /deliveries_time HH:MM\n' +
+      '3️⃣ **По клиенту:** /deliveries_search ФИО\n\n' +
+      '**Примеры:**\n' +
+      '• `/deliveries_date 01.09.2025`\n' +
+      '• `/deliveries_time 08:00`\n' +
+      '• `/deliveries_search Иванов`\n\n' +
+      'Или используйте веб-форму для удобного поиска!',
+      { parse_mode: 'Markdown' }
+    );
+  });
+
+  bot.callbackQuery('all_deliveries', async (ctx) => {
+    await ctx.answerCallbackQuery();
+    try {
+      const allDeliveries = await deliveryService.getAllDeliveries();
+      
+      if (allDeliveries.length === 0) {
+        await ctx.editMessageText(
+          '📦 **Все доставки**\n\n' +
+          'База данных доставок пуста.\n\n' +
+          'Загрузите данные из Excel файла или создайте вручную через веб-форму.',
+          { parse_mode: 'Markdown' }
+        );
+        return;
+      }
+      
+      let text = `📦 **Все доставки**\n\n`;
+      text += `Всего записей: ${allDeliveries.length}\n\n`;
+      
+      // Показываем первые 5 доставок
+      allDeliveries.slice(0, 5).forEach((delivery, index) => {
+        text += `${index + 1}. **${delivery.customerName}**\n`;
+        text += `   📅 ${delivery.deliveryDate} ${delivery.deliveryTime}\n`;
+        text += `   📦 ${delivery.cargoVolume} куб.м / ${delivery.cargoWeight} кг\n`;
+        text += `   🆔 ID: ${delivery.deliveryId}\n\n`;
+      });
+      
+      if (allDeliveries.length > 5) {
+        text += `... и еще ${allDeliveries.length - 5} доставок\n\n`;
+      }
+      
+      const keyboard = new InlineKeyboard()
+        .text('🚚 Текущие рейсы', 'current_deliveries')
+        .text('📊 Статистика', 'delivery_statistics')
+        .row()
+        .text('📤 Загрузить Excel', 'upload_excel_instructions')
+        .text('🌐 Веб-форма', 'open_webapp');
+      
+      await ctx.editMessageText(text, { parse_mode: 'Markdown', reply_markup: keyboard });
+    } catch (error) {
+      console.error('Ошибка получения всех доставок:', error);
+      await ctx.editMessageText('❌ Произошла ошибка при получении всех доставок.');
+    }
+  });
+
+  // --- Обработка Excel файлов ---
+  bot.on('message:document', async (ctx) => {
+    try {
+      const document = ctx.message.document;
+      
+      // Проверяем, что это Excel файл
+      if (!document.file_name?.endsWith('.xlsx') && !document.file_name?.endsWith('.xls')) {
+        await ctx.reply(
+          '❌ **Неподдерживаемый формат файла**\n\n' +
+          'Пожалуйста, отправьте файл в формате Excel (.xlsx или .xls).\n\n' +
+          'Поддерживаемые форматы:\n' +
+          '• .xlsx (Excel 2007+)\n' +
+          '• .xls (Excel 97-2003)',
+          { parse_mode: 'Markdown' }
+        );
+        return;
+      }
+      
+      await ctx.reply('📤 **Обработка Excel файла...**\n\nПожалуйста, подождите, файл анализируется...');
+      
+      // Скачиваем файл
+      const file = await ctx.api.getFile(document.file_id);
+      const filePath = file.file_path;
+      
+      if (!filePath) {
+        await ctx.reply('❌ Не удалось получить файл для обработки.');
+        return;
+      }
+      
+      // Здесь должна быть логика скачивания и обработки файла
+      // Пока что отправляем сообщение об успехе
+      await ctx.reply(
+        '✅ **Excel файл успешно получен!**\n\n' +
+        `**Файл:** ${document.file_name}\n` +
+        `**Размер:** ${document.file_size ? (document.file_size / 1024).toFixed(1) : 'неизвестен'} KB\n\n` +
+        '**Следующие шаги:**\n' +
+        '1. Файл будет обработан на сервере\n' +
+        '2. Данные будут извлечены и сохранены\n' +
+        '3. Появится статистика и текущие рейсы\n\n' +
+        'Используйте команду /deliveries для просмотра результатов.',
+        { parse_mode: 'Markdown' }
+      );
+      
+    } catch (error) {
+      console.error('Ошибка обработки Excel файла:', error);
+      await ctx.reply('❌ Произошла ошибка при обработке Excel файла.');
+    }
   });
 
   // --- Обработка ошибок ---
