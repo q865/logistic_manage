@@ -2,7 +2,7 @@
  * Сервис для обработки Excel файлов с данными о грузах
  */
 
-import ExcelParser from '../parsers/excelParser';
+import ExcelParser from '../parsers/excelParser.js';
 import { DeliveryService } from './deliveryService.js';
 import type { Delivery } from '../models/Delivery.js';
 

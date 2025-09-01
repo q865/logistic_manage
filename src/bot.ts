@@ -458,7 +458,7 @@ export function createBot(token: string, driverService: DriverService, scheduleS
   // Callback для открытия календаря
   bot.callbackQuery('open_schedule_webapp', (ctx) => {
     const keyboard = new InlineKeyboard()
-      .url('📅 Открыть календарь', `${WEBAPP_URL}/schedule`)
+              .url('📅 Открыть календарь', `${WEBAPP_URL}`)
       .row()
       .text('🚗 Текущие рейсы', 'current_trips')
       .text('👥 Список водителей', 'drivers_page_1');
