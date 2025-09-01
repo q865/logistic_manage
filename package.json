@@ -22,6 +22,7 @@
     "date-fns": "^4.1.0",
     "docxtemplater": "^3.66.0",
     "dotenv": "^17.2.1",
+    "exceljs": "^4.4.0",
     "express": "^4.19.2",
     "express-validator": "^7.2.1",
     "grammy": "^1.38.1",
@@ -29,8 +30,7 @@
     "knex": "^3.1.0",
     "multer": "^2.0.2",
     "pizzip": "^3.2.0",
-    "sqlite3": "^5.1.7",
-    "xlsx": "^0.18.5"
+    "sqlite3": "^5.1.7"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",

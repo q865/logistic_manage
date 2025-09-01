@@ -7,9 +7,9 @@ export class DeliveryService {
   /**
    * Загружает данные из Excel файла
    */
-  async loadFromExcel(fileBuffer: Buffer): Promise<Delivery[]> {
+  async loadFromExcel(fileBuffer: Buffer | Uint8Array): Promise<Delivery[]> {
     try {
-      const parsedDeliveries = ExcelParserService.parseDeliveryExcel(fileBuffer);
+      const parsedDeliveries = await ExcelParserService.parseDeliveryExcel(fileBuffer);
       
       // Валидируем каждую доставку
       const validDeliveries = parsedDeliveries.filter(delivery => 

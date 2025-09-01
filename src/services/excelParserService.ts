@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import type { Delivery, CargoDetails, OrderInfo, DeliveryInfo } from '../models/Delivery';
 
 export class ExcelParserService {
@@ -6,46 +6,42 @@ export class ExcelParserService {
   /**
    * Парсит Excel файл и извлекает данные о доставках
    */
-  static parseDeliveryExcel(fileBuffer: Buffer): Delivery[] {
+  static async parseDeliveryExcel(fileBuffer: Buffer | Uint8Array): Promise<Delivery[]> {
     try {
-      const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
-      const sheetName = workbook.SheetNames[0];
-      if (!sheetName) {
-        throw new Error('Лист не найден в Excel файле');
-      }
-      const worksheet = workbook.Sheets[sheetName];
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(fileBuffer as any);
+      
+      const worksheet = workbook.getWorksheet(1); // Получаем первый лист
       if (!worksheet) {
         throw new Error('Лист не найден в Excel файле');
       }
       
-      // Конвертируем в JSON
-      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-      
       const deliveries: Delivery[] = [];
       
       // Парсим каждую строку
-      for (let i = 0; i < jsonData.length; i++) {
-        const row = jsonData[i] as any[];
-        console.log(`Строка ${i + 1}:`, row);
+      worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) return; // Пропускаем заголовок
         
-        if (row.length === 0 || !row[0]) {
-          console.log(`Строка ${i + 1} пустая, пропускаем`);
-          continue;
+        const rowData = row.values as any[];
+        console.log(`Строка ${rowNumber}:`, rowData);
+        
+        if (!rowData || rowData.length === 0 || !rowData[1]) {
+          console.log(`Строка ${rowNumber} пустая, пропускаем`);
+          return;
         }
         
         try {
-          const delivery = this.parseRow(row);
+          const delivery = this.parseRow(rowData);
           if (delivery) {
-            console.log(`Строка ${i + 1} успешно распарсена:`, delivery);
+            console.log(`Строка ${rowNumber} успешно распарсена:`, delivery);
             deliveries.push(delivery);
           } else {
-            console.log(`Строка ${i + 1} не прошла валидацию`);
+            console.log(`Строка ${rowNumber} не прошла валидацию`);
           }
         } catch (error) {
-          console.error(`Ошибка парсинга строки ${i + 1}:`, error);
-          continue;
+          console.error(`Ошибка парсинга строки ${rowNumber}:`, error);
         }
-      }
+      });
       
       return deliveries;
     } catch (error) {
@@ -57,22 +53,21 @@ export class ExcelParserService {
   /**
    * Парсит отдельную строку Excel
    */
-  private static parseRow(row: any[]): Delivery | null {
-    if (row.length < 4) return null;
+  private static parseRow(rowData: any[]): Delivery | null {
+    if (rowData.length < 5) return null; // exceljs индексирует с 1, поэтому нужно 5 элементов
     
-    // Данные уже разбиты по ячейкам
-    const identifier = row[0];
-    const cargoData = row[1];
-    const orderAndCustomerData = row[2];
-    const company = row[3];
+    // Данные уже разбиты по ячейкам (индексы начинаются с 1)
+    const identifier = rowData[1];
+    const cargoData = rowData[2];
+    const orderAndCustomerData = rowData[3];
+    const company = rowData[4];
     
     if (!identifier || !cargoData || !orderAndCustomerData || !company) {
       return null;
-      
     }
     
     // Парсим детали груза
-    const cargoMatch = cargoData.match(/(\d+\.?\d*)\s*куб\.м\/(\d+)\s*кг\/(\d+\.?\d*)\s*м\/([^/]+)/);
+    const cargoMatch = cargoData.toString().match(/(\d+\.?\d*)\s*куб\.м\/(\d+)\s*кг\/(\d+\.?\d*)\s*м\/([^/]+)/);
     if (!cargoMatch) return null;
     
     const cargoDetails: CargoDetails = {
@@ -85,24 +80,26 @@ export class ExcelParserService {
     // Парсим информацию о заказе и клиенте
     // Формат: "13908.Заказано.01.09.2025 00:00:00.Кулушов Марат Шайлообаевич........01.09.2025 01:30:00..202"
     
+    const orderAndCustomerStr = orderAndCustomerData.toString();
+    
     // Сначала парсим номер заказа и время
-    const orderMatch = orderAndCustomerData.match(/(\d+)\.Заказано\.(\d{2}\.\d{2}\.\d{4})\s+(\d{2}:\d{2}:\d{2})/);
+    const orderMatch = orderAndCustomerStr.match(/(\d+)\.Заказано\.(\d{2}\.\d{2}\.\d{4})\s+(\d{2}:\d{2}:\d{2})/);
     if (!orderMatch) {
-      console.log('Order match failed for:', orderAndCustomerData);
+      console.log('Order match failed for:', orderAndCustomerStr);
       return null;
     }
     
     // Парсим имя клиента (между временем заказа и точками)
-    const nameMatch = orderAndCustomerData.match(/Заказано\.\d{2}\.\d{2}\.\d{4}\s+\d{2}:\d{2}:\d{2}\.([А-Яа-я\s]+?)\.{8,}/);
+    const nameMatch = orderAndCustomerStr.match(/Заказано\.\d{2}\.\d{2}\.\d{4}\s+\d{2}:\d{2}:\d{2}\.([А-Яа-я\s]+?)\.{8,}/);
     if (!nameMatch) {
-      console.log('Name match failed for:', orderAndCustomerData);
+      console.log('Name match failed for:', orderAndCustomerStr);
       return null;
     }
     
     // Парсим информацию о доставке
-    const deliveryMatch = orderAndCustomerData.match(/\.{8,}(\d{2}\.\d{2}\.\d{4})\s+(\d{2}:\d{2}:\d{2})\.\.(\d+)/);
+    const deliveryMatch = orderAndCustomerStr.match(/\.{8,}(\d{2}\.\d{2}\.\d{4})\s+(\d{2}:\d{2}:\d{2})\.\.(\d+)/);
     if (!deliveryMatch) {
-      console.log('Delivery match failed for:', orderAndCustomerData);
+      console.log('Delivery match failed for:', orderAndCustomerStr);
       return null;
     }
     
@@ -119,11 +116,11 @@ export class ExcelParserService {
       date: deliveryMatch[1] || '',
       time: deliveryMatch[2] || '',
       id: parseInt(deliveryMatch[3] || '0'),
-      company: company
+      company: company.toString()
     };
     
     return {
-      identifier: identifier,
+      identifier: identifier.toString(),
       cargoVolume: cargoDetails.volume,
       cargoWeight: cargoDetails.weight,
       cargoLength: cargoDetails.length,
