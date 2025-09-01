@@ -9,3 +9,4 @@ const config = environment === 'test' ? knexConfig.test : knexConfig.development
 console.log(`[Knex] Initializing connection for [${environment}] environment.`);
 
 export const knexInstance = knex(config);
+export default knexInstance;

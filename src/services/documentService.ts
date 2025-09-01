@@ -126,6 +126,7 @@ function flattenDriverData(driver: Driver): Record<string, any> {
   data.current_date = format(new Date(), 'dd.MM.yyyy');
   data.fullname = `${data.lastname || ''} ${data.firstname || ''} ${data.patronymic || ''}`.trim();
   
+  
   // НОВАЯ ПЕРЕМЕННАЯ: Фамилия с инициалами (например, "Панин С.А.")
   const firstNameInitial = data.firstname ? data.firstname.charAt(0) + '.' : '';
   const patronymicInitial = data.patronymic ? data.patronymic.charAt(0) + '.' : '';
@@ -134,6 +135,7 @@ function flattenDriverData(driver: Driver): Record<string, any> {
   data['ФИО с инициалами'] = data['lastname_with_initials'];
   data['фамилия_инициалы'] = data['lastname_with_initials'];
   data['фамилия инициалы'] = data['lastname_with_initials'];
+
 
   // КРИТИЧЕСКИ ВАЖНО: Добавляем поля для дат с пробелами в конце (как в шаблоне)
   data['lease_agreement_date '] = driver.leaseAgreement?.date ? format(new Date(driver.leaseAgreement.date), 'dd.MM.yyyy') : '';
@@ -164,10 +166,10 @@ function flattenDriverData(driver: Driver): Record<string, any> {
   data['дата_сегодня'] = format(now, 'dd.MM.yyyy');
 
   // КРИТИЧЕСКИ ВАЖНО: Добавляем поврежденные плейсхолдеры с XML-тегами
-  data['personalData </w:t></w:r><w:r><w:rPr><w:rFonts w:eastAsia="Times New Roman" w:cs="Times New Roman" w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="18"/><w:shd w:fill="FFFF00" w:val="clear"/></w:rPr></w:r><w:t>_</w:t></w:r><w:r><w:rPr><w:rFonts w:eastAsia="Times New Roman" w:cs="Times New Roman" w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="18"/><w:shd w:fill="FFFF00" w:val="clear"/></w:rPr></w:r><w:t>patronymic'] = driver.personalData?.patronymic || '';
-  data['personalData</w:t></w:r><w:r><w:rPr><w:rFonts w:eastAsia="Times New Roman" w:cs="Times New Roman" w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="18"/><w:shd w:fill="FFFF00" w:val="clear"/></w:rPr></w:r><w:t>_</w:t></w:r><w:r><w:rPr><w:rFonts w:eastAsia="Times New Roman" w:cs="Times New Roman" w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="18"/><w:shd w:fill="FFFF00" w:val="clear"/></w:rPr></w:r><w:t xml:space="preserve">firstname'] = driver.personalData?.firstName || '';
-  data['vehicle_make</w:t></w:r><w:r><w:rPr><w:rFonts w:eastAsia="Times New Roman" w:cs="Times New Roman" w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:b/><w:sz w:val="18"/><w:shd w:fill="FFFF00" w:val="clear"/></w:rPr></w:r><w:t>'] = driver.vehicle?.make || '';
-  data['{</w:t></w:r><w:r><w:rPr><w:rFonts w:eastAsia="Times New Roman" w:cs="Times New Roman" w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="18"/><w:shd w:fill="FFFF00" w:val="clear"/></w:rPr></w:r><w:t xml:space="preserve">personalData_lastName'] = driver.personalData?.lastName || '';
+  data['personalData_patronymic'] = driver.personalData?.patronymic || '';
+  data['personalData_firstname'] = driver.personalData?.firstName || '';
+  data['vehicle_make'] = driver.vehicle?.make || '';
+  data['personalData_lastName'] = driver.personalData?.lastName || '';
   
   // Добавляем плейсхолдеры с пробелами в конце
   data['passport_number '] = driver.passport?.number || '';
