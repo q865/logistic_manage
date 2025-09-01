@@ -191,12 +191,11 @@ export class ExcelParser {
     
     const { route, cargo, order } = parsedData;
     
-    return `📦 **Заказ №${order.orderNumber}**
-👤 **Клиент**: ${order.customerName}
-📅 **Дата заказа**: ${order.orderDate} ${order.orderTime}
-🚚 **Доставка**: ${order.deliveryDate} ${order.deliveryTime}
-📏 **Груз**: ${cargo.volume} куб.м, ${cargo.weight} кг, ${cargo.length} м
-📍 **Маршрут**: ${route.date} ${route.region} ${route.time}`;
+    return `🚚 **Рейс №${order.orderNumber}**
+👨‍✈️ **Водитель**: ${order.customerName}
+📦 **Груз**: ${cargo.volume} куб.м, ${cargo.weight} кг, ${cargo.length} м
+📥 **Дата погрузки**: ${order.orderDate} ${order.orderTime}
+🗓️ **Дата маршрута**: ${route.date} ${route.time}`;
   }
 }
 
