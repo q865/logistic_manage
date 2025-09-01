@@ -33,10 +33,10 @@ export interface ParsedRowData {
   cargo: ParsedCargo;
   order: ParsedOrder;
   company: string;
-  rawData: string[];
+  rawData?: any[];
 }
 
-export class ExcelParser {
+class ExcelParser {
   /**
    * Парсит строку с данными о грузе
    * @param cargoData - строка с данными о грузе

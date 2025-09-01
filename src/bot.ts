@@ -7,6 +7,7 @@ import { Bot, InlineKeyboard, InputFile } from 'grammy';
 import { DriverService } from './services/driverService.js';
 import { ScheduleService } from './services/scheduleService.js';
 import { DeliveryService } from './services/deliveryService.js';
+import { TripService } from './services/tripService.js';
 import { ExcelProcessingService } from './services/excelProcessingService.js';
 import { generateLeaseAgreement } from './services/documentService.js';
 import { notificationService } from './services/notificationService.js';
@@ -29,6 +30,7 @@ const instructions = {
 export function createBot(token: string, driverService: DriverService, scheduleService: ScheduleService) {
   const bot = new Bot(token);
   const deliveryService = new DeliveryService();
+  const tripService = new TripService();
   const excelProcessingService = new ExcelProcessingService();
 
   // --- Установка команд в меню ---
@@ -89,6 +91,7 @@ export function createBot(token: string, driverService: DriverService, scheduleS
       .text('👥 Список водителей', 'drivers_page_1').row()
       .text('📅 График работы', 'schedule_current').row()
       .text('🚗 Текущие рейсы', 'current_trips').row()
+      .text('🚚 Управление рейсами', 'trips_menu').row()
       .text('📊 Excel файлы', 'excel_menu').row()
       .text('🌐 Веб-форма', 'open_webapp').row()
       .text('📚 База знаний', 'open_instructions');
@@ -133,7 +136,32 @@ export function createBot(token: string, driverService: DriverService, scheduleS
       const { text, keyboard } = await createDriversListMessage(1);
       await ctx.reply(text, { parse_mode: 'Markdown', reply_markup: keyboard });
     } catch (error) {
-      await ctx.reply('Произошла ошибка при получении списка водителей.');
+      console.error('Ошибка получения списка водителей:', error);
+      await ctx.reply('❌ Произошла ошибка при получении списка водителей.');
+    }
+  });
+
+  bot.command('trips', async (ctx) => {
+    try {
+      const keyboard = new InlineKeyboard()
+        .text('📋 Все рейсы', 'trips_all')
+        .text('🚗 Рейсы водителя', 'trips_by_driver').row()
+        .text('➕ Создать рейс', 'trip_create')
+        .text('📊 Статистика рейсов', 'trips_stats').row()
+        .text('🔙 Главное меню', 'back_to_main');
+      
+      await ctx.reply(
+        '🚚 **Управление рейсами**\n\n' +
+        'Выберите действие для управления рейсами:\n\n' +
+        '• **Все рейсы** - просмотр всех рейсов с фильтрацией\n' +
+        '• **Рейсы водителя** - рейсы конкретного водителя\n' +
+        '• **Создать рейс** - добавить новый рейс\n' +
+        '• **Статистика** - аналитика по рейсам',
+        { parse_mode: 'Markdown', reply_markup: keyboard }
+      );
+    } catch (error) {
+      console.error('Ошибка открытия меню рейсов:', error);
+      await ctx.reply('❌ Произошла ошибка при открытии меню рейсов.');
     }
   });
 
@@ -164,97 +192,184 @@ export function createBot(token: string, driverService: DriverService, scheduleS
     await ctx.reply(text, { parse_mode: 'Markdown', reply_markup: keyboard });
   });
 
-  // --- Обработчики кнопок ---
-  bot.callbackQuery(/drivers_page_(\d+)/, async (ctx) => {
-    const page = parseInt(ctx.match[1]!, 10);
+  bot.command('create_trip', async (ctx) => {
     try {
-      const { text, keyboard } = await createDriversListMessage(page);
-      await ctx.editMessageText(text, { parse_mode: 'Markdown', reply_markup: keyboard });
+      if (!ctx.message?.text) {
+        await ctx.reply('❌ Ошибка: сообщение не содержит текст');
+        return;
+      }
+      
+      const args = ctx.message.text.split(' ').slice(1);
+      
+      if (args.length < 2) {
+        await ctx.reply(
+          '❌ **Неверный формат команды**\n\n' +
+          '**Правильный формат:**\n' +
+          '`/create_trip <driver_id> <route_info> [status] [notes]`\n\n' +
+          '**Примеры:**\n' +
+          '• `/create_trip 1 "01.09.25_77_00ч_ВИП_19 - Москва-СПб"`\n' +
+          '• `/create_trip 2 "02.09.25_78_12ч_СТАНДАРТ_25" review "Срочная доставка"`\n\n' +
+          '**Параметры:**\n' +
+          '• `driver_id` - ID водителя (обязательно)\n' +
+          '• `route_info` - информация о маршруте (обязательно)\n' +
+          '• `status` - статус (по умолчанию: review)\n' +
+          '• `notes` - заметки (опционально)',
+          { parse_mode: 'Markdown' }
+        );
+        return;
+      }
+      
+      const driverId = parseInt(args[0]);
+      const routeInfo = args[1];
+      const status = args[2] || 'review';
+      const notes = args.slice(3).join(' ') || null;
+      
+      if (isNaN(driverId)) {
+        await ctx.reply('❌ **Ошибка:** ID водителя должен быть числом');
+        return;
+      }
+      
+      if (!routeInfo) {
+        await ctx.reply('❌ **Ошибка:** Информация о маршруте обязательна');
+        return;
+      }
+      
+      // Проверяем существование водителя
+      const driver = await driverService.findDriverById(driverId);
+      if (!driver) {
+        await ctx.reply(`❌ **Ошибка:** Водитель с ID ${driverId} не найден`);
+        return;
+      }
+      
+      // Проверяем валидность статуса
+      const validStatuses = ['review', 'with_driver', 'rework', 'lost', 'verified'];
+      if (!validStatuses.includes(status)) {
+        await ctx.reply(
+          `❌ **Ошибка:** Неверный статус "${status}"\n\n` +
+          `Допустимые значения: ${validStatuses.join(', ')}`
+        );
+        return;
+      }
+      
+      // Создаем рейс
+      const tripData = {
+        driver_id: driverId,
+        delivery_id: null,
+        route_info: routeInfo!,
+        status: status as any,
+        notes
+      };
+      
+      const newTrip = await tripService.createTrip(tripData);
+      
+      const driverName = `${driver.personalData.lastName} ${driver.personalData.firstName}`;
+      const statusLabels = {
+        review: '🔄 На проверке',
+        with_driver: '🚗 У водителя',
+        rework: '🔧 На доработке',
+        lost: '❌ Утеряны',
+        verified: '✅ Проверены'
+      };
+      
+      await ctx.reply(
+        `✅ **Рейс успешно создан!**\n\n` +
+        `**ID рейса:** ${newTrip.id}\n` +
+        `**Водитель:** ${driverName} (ID: ${driverId})\n` +
+        `**Маршрут:** ${routeInfo}\n` +
+        `**Статус:** ${statusLabels[status as keyof typeof statusLabels]}\n` +
+        `**Заметки:** ${notes || 'Нет'}\n\n` +
+        `Используйте /trips для управления рейсами`,
+        { parse_mode: 'Markdown' }
+      );
+      
     } catch (error) {
-      await ctx.answerCallbackQuery({ text: 'Не удалось загрузить страницу.' });
+      console.error('Ошибка создания рейса:', error);
+      await ctx.reply('❌ Произошла ошибка при создании рейса. Попробуйте позже.');
     }
   });
 
-  bot.callbackQuery(/generate_doc_(\d+)/, async (ctx) => {
-    const driverId = parseInt(ctx.match[1]!, 10);
+  bot.command('trip_status', async (ctx) => {
     try {
-      await ctx.answerCallbackQuery({ text: '📄 Начинаю генерацию договора...' });
-      const docBuffer = await generateLeaseAgreement(driverId, driverService);
-      const doc = new InputFile(docBuffer, `lease_agreement_${driverId}.docx`);
-      await ctx.replyWithDocument(doc, { caption: `Договор аренды для водителя ID ${driverId}` });
-    } catch (error: any) {
-      console.error(`Ошибка генерации документа для ID ${driverId}:`, error);
-      await ctx.answerCallbackQuery({ text: `❌ Ошибка: ${error.message}`, show_alert: true });
-    }
-  });
-
-  // --- Обработчики инструкций ---
-  bot.callbackQuery(/instruction_(\w+)/, async (ctx) => {
-    const instructionKey = ctx.match[1] as keyof typeof instructions;
-    if (!instructions[instructionKey]) return ctx.answerCallbackQuery({ text: 'Неизвестная инструкция.' });
-
-    try {
-      const filePath = path.join(INSTRUCTIONS_DIR, `${instructionKey}.md`);
-      const content = await fs.readFile(filePath, 'utf-8');
-      const keyboard = new InlineKeyboard().text('◀️ Назад к инструкциям', 'back_to_instructions');
-      await ctx.editMessageText(content, { parse_mode: 'Markdown', reply_markup: keyboard });
+      if (!ctx.message?.text) {
+        await ctx.reply('❌ Ошибка: сообщение не содержит текст');
+        return;
+      }
+      
+      const args = ctx.message.text.split(' ').slice(1);
+      
+      if (args.length < 2) {
+        await ctx.reply(
+          '❌ **Неверный формат команды**\n\n' +
+          '**Правильный формат:**\n' +
+          '`/trip_status <trip_id> <new_status>`\n\n' +
+          '**Примеры:**\n' +
+          '• `/trip_status 1 with_driver`\n' +
+          '• `/trip_status 2 verified`\n\n' +
+          '**Доступные статусы:**\n' +
+          '• `review` - На проверке\n' +
+          '• `with_driver` - У водителя\n' +
+          '• `rework` - На доработке\n' +
+          '• `lost` - Утеряны\n' +
+          '• `verified` - Проверены',
+          { parse_mode: 'Markdown' }
+        );
+        return;
+      }
+      
+      const tripId = parseInt(args[0]);
+      const newStatus = args[1];
+      
+      if (isNaN(tripId)) {
+        await ctx.reply('❌ **Ошибка:** ID рейса должен быть числом');
+        return;
+      }
+      
+      // Проверяем валидность статуса
+      const validStatuses = ['review', 'with_driver', 'rework', 'lost', 'verified'];
+      if (!validStatuses.includes(newStatus)) {
+        await ctx.reply(
+          `❌ **Ошибка:** Неверный статус "${newStatus}"\n\n` +
+          `Допустимые значения: ${validStatuses.join(', ')}`
+        );
+        return;
+      }
+      
+      // Получаем текущий рейс
+      const currentTrip = await tripService.getTripById(tripId);
+      if (!currentTrip) {
+        await ctx.reply(`❌ **Ошибка:** Рейс с ID ${tripId} не найден`);
+        return;
+      }
+      
+      // Обновляем статус
+      const updatedTrip = await tripService.updateTripStatus(tripId, newStatus as any);
+      
+      if (!updatedTrip) {
+        await ctx.reply('❌ **Ошибка:** Не удалось обновить статус рейса');
+        return;
+      }
+      
+      const statusLabels = {
+        review: '🔄 На проверке',
+        with_driver: '🚗 У водителя',
+        rework: '🔧 На доработке',
+        lost: '❌ Утеряны',
+        verified: '✅ Проверены'
+      };
+      
+      await ctx.reply(
+        `✅ **Статус рейса успешно обновлен!**\n\n` +
+        `**ID рейса:** ${tripId}\n` +
+        `**Маршрут:** ${updatedTrip.route_info}\n` +
+        `**Новый статус:** ${statusLabels[newStatus as keyof typeof statusLabels]}\n\n` +
+        `Используйте /trips для просмотра всех рейсов`,
+        { parse_mode: 'Markdown' }
+      );
+      
     } catch (error) {
-      await ctx.answerCallbackQuery({ text: 'Не удалось загрузить инструкцию.', show_alert: true });
+      console.error('Ошибка смены статуса рейса:', error);
+      await ctx.reply('❌ Произошла ошибка при смене статуса рейса. Попробуйте позже.');
     }
-  });
-
-  bot.callbackQuery('back_to_instructions', async (ctx) => {
-    const { text, keyboard } = getInstructionsMenu();
-    await ctx.editMessageText(text, { parse_mode: 'Markdown', reply_markup: keyboard });
-  });
-
-  bot.callbackQuery('open_webapp', (ctx) => {
-    const keyboard = new InlineKeyboard()
-      .url('🌐 Открыть веб-форму', WEBAPP_URL)
-      .row()
-      .text('👥 Список водителей', 'drivers_page_1')
-      .text('📚 База знаний', 'open_instructions');
-    
-    ctx.editMessageText(
-      '🌐 **Веб-форма для управления водителями**\n\n' +
-      'Нажмите кнопку ниже, чтобы открыть удобную веб-форму для:\n' +
-      '• Создания новых водителей\n' +
-      '• Редактирования существующих\n' +
-      '• Просмотра списка с пагинацией\n' +
-      '• Управления данными',
-      { parse_mode: 'Markdown', reply_markup: keyboard }
-    );
-  });
-
-  bot.callbackQuery('open_instructions', (ctx) => {
-    const { text, keyboard } = getInstructionsMenu();
-    ctx.editMessageText(text, { parse_mode: 'Markdown', reply_markup: keyboard });
-  });
-
-  bot.callbackQuery('excel_menu', async (ctx) => {
-    await ctx.answerCallbackQuery();
-    
-    const keyboard = new InlineKeyboard()
-      .text('📤 Загрузить Excel файл', 'upload_excel_instructions')
-      .text('📊 Тест парсера', 'test_excel_parser')
-      .row()
-      .text('📈 Статистика обработки', 'excel_processing_stats')
-      .text('📋 Формат файла', 'excel_format_info')
-      .row()
-      .text('📦 Управление доставками', 'deliveries_page_1')
-      .text('🌐 Веб-форма', 'open_webapp');
-    
-    await ctx.editMessageText(
-      '📊 **Обработка Excel файлов**\n\n' +
-      'Загружайте Excel файлы с данными о грузах для автоматической обработки.\n\n' +
-      '**Возможности:**\n' +
-      '• Автоматический парсинг данных о грузах\n' +
-      '• Валидация и проверка корректности\n' +
-      '• Сохранение в базу данных\n' +
-      '• Детальная статистика обработки\n\n' +
-      '**Просто отправьте Excel файл** или используйте кнопки ниже.',
-      { parse_mode: 'Markdown', reply_markup: keyboard }
-    );
   });
 
   // --- Команды для графиков ---

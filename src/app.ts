@@ -4,6 +4,7 @@ import cors from 'cors';
 import { createDriverRouter } from './api/driverRoutes.js';
 import { createScheduleRouter } from './api/scheduleRoutes.js';
 import deliveryRoutes from './api/deliveryRoutes.js';
+import tripRoutes from './routes/tripRoutes.js';
 import { DriverService } from './services/driverService.js';
 import { ScheduleService } from './services/scheduleService.js';
 import { notificationService } from './services/notificationService.js';
@@ -37,6 +38,7 @@ const scheduleRoutes = createScheduleRouter(scheduleService);
 app.use('/api/drivers', driverRoutes);
 app.use('/api/schedules', scheduleRoutes);
 app.use('/api/deliveries', deliveryRoutes);
+app.use('/api/trips', tripRoutes);
 
 // --- ВЕБ-ХУК ДЛЯ УВЕДОМЛЕНИЙ ---
 app.post('/api/webhook/driver-created', async (req, res) => {

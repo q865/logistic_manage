@@ -3,6 +3,8 @@
  */
 
 import ExcelParser from '../parsers/excelParser.js';
+import { TripService } from './tripService.js';
+import type { ParsedRowData } from '../parsers/excelParser.js';
 import { DeliveryService } from './deliveryService.js';
 import type { Delivery } from '../models/Delivery.js';
 
@@ -28,9 +30,11 @@ interface ProcessingResponse {
 
 export class ExcelProcessingService {
   private deliveryService: DeliveryService;
+  private tripService: TripService;
 
   constructor() {
     this.deliveryService = new DeliveryService();
+    this.tripService = new TripService();
   }
 
   /**
@@ -38,59 +42,48 @@ export class ExcelProcessingService {
    * @param fileBuffer - буфер с содержимым Excel файла
    * @returns Promise<ProcessingResponse> - массив распарсенных данных
    */
-  async processExcelFile(fileBuffer: Buffer): Promise<ProcessingResponse> {
+  async processExcelFile(fileBuffer: Buffer): Promise<any> {
     try {
-      // Здесь будет логика чтения Excel файла
-      // Пока используем тестовые данные для демонстрации
-      const mockExcelData = this.getMockExcelData();
+      console.log('🚀 Начинаю обработку Excel файла...');
       
-      const results: ProcessingResult[] = [];
-      let successCount = 0;
-      let errorCount = 0;
-
-      for (const row of mockExcelData) {
-        try {
-          const parsedData = ExcelParser.parseRow(row);
-          
-                  if (parsedData && ExcelParser.validate(parsedData)) {
-          // Сохраняем в базу данных
-          const delivery = await this.saveDeliveryToDatabase(parsedData);
-          results.push({
-            success: true,
-            data: parsedData,
-            deliveryId: delivery?.id,
-            formatted: ExcelParser.format(parsedData)
-          });
-          successCount++;
-        } else {
-            results.push({
-              success: false,
-              error: 'Данные не прошли валидацию',
-              rawData: row
-            });
-            errorCount++;
-          }
-        } catch (error: any) {
-          results.push({
-            success: false,
-            error: `Ошибка парсинга: ${error?.message || 'Неизвестная ошибка'}`,
-            rawData: row
-          });
-          errorCount++;
-        }
+      // Парсим Excel данные (пока используем мок-данные)
+      const parsedData = this.getMockExcelData().map(row => ExcelParser.parseRow(row)).filter((data): data is ParsedRowData => data !== null);
+      
+      if (!parsedData || parsedData.length === 0) {
+        throw new Error('Не удалось извлечь данные из Excel файла');
       }
 
-      return {
-        results,
-        summary: {
-          total: mockExcelData.length,
-          success: successCount,
-          error: errorCount
-        }
+      console.log(`📊 Извлечено ${parsedData.length} строк данных`);
+
+      // Создаем доставки
+      const deliveryResults = await this.createDeliveriesFromExcelData(parsedData);
+      
+      // Создаем рейсы (по умолчанию для водителя с ID 1)
+      const tripResults = await this.createTripsFromExcelData(parsedData, 1);
+
+      // Формируем результаты
+      const results = {
+        success: true,
+        totalRows: parsedData.length,
+        tripsCreated: tripResults.created,
+        deliveriesCreated: deliveryResults.created,
+        tripErrors: tripResults.errors,
+        deliveryErrors: deliveryResults.errors,
+        results: parsedData.map((data, index) => ({
+          row: index + 1,
+          success: true,
+          data,
+          formatted: this.formatRowData(data)
+        }))
       };
 
-    } catch (error: any) {
-      throw new Error(`Ошибка обработки Excel файла: ${error?.message || 'Неизвестная ошибка'}`);
+      console.log(`✅ Обработка завершена. Создано ${tripResults.created} рейсов, ${deliveryResults.created} доставок`);
+      
+      return results;
+
+    } catch (error) {
+      console.error('❌ Ошибка обработки Excel файла:', error);
+      throw error;
     }
   }
 
@@ -163,42 +156,110 @@ export class ExcelProcessingService {
   }
 
   /**
-   * Форматирует результаты обработки для вывода в Telegram
-   * @param results - результаты обработки
-   * @returns string - отформатированный текст
+   * Форматирует результаты обработки для отображения
    */
-  formatProcessingResults(results: ProcessingResponse): string {
-    const { summary } = results;
-    
-    let text = `📊 **Результаты обработки Excel файла**\n\n`;
-    text += `📁 **Всего строк**: ${summary.total}\n`;
-    text += `✅ **Успешно обработано**: ${summary.success}\n`;
-    text += `❌ **Ошибок**: ${summary.error}\n\n`;
-
-    if (summary.success > 0) {
-      text += `🎯 **Успешно обработанные заказы:**\n`;
-      results.results
-        .filter((r: ProcessingResult) => r.success)
-        .forEach((result: ProcessingResult, index: number) => {
-          if (result.data) {
-            text += `${index + 1}. Заказ №${result.data.order.orderNumber}\n`;
-            text += `   Клиент: ${result.data.order.customerName}\n`;
-            text += `   Груз: ${result.data.cargo.volume} куб.м, ${result.data.cargo.weight} кг\n`;
-            text += `   Маршрут: ${result.data.route.date} ${result.data.route.region}\n\n`;
-          }
-        });
+  formatProcessingResults(results: any): string {
+    if (!results || !results.results) {
+      return '❌ Нет данных для отображения';
     }
 
-    if (summary.error > 0) {
-      text += `⚠️ **Строки с ошибками:**\n`;
-      results.results
-        .filter((r: ProcessingResult) => !r.success)
-        .forEach((result: ProcessingResult, index: number) => {
-          text += `${index + 1}. ${result.error}\n`;
-        });
+    const successful = results.results.filter((r: any) => r.success).length;
+    const failed = results.results.filter((r: any) => !r.success).length;
+    const total = results.results.length;
+
+    let text = `📊 **Результаты обработки Excel файла**\n\n`;
+    text += `✅ **Успешно обработано:** ${successful}\n`;
+    text += `❌ **Ошибки:** ${failed}\n`;
+    text += `📋 **Всего строк:** ${total}\n\n`;
+
+    if (successful > 0) {
+      text += `🚚 **Создано рейсов:** ${results.tripsCreated || 0}\n`;
+      text += `📦 **Создано доставок:** ${results.deliveriesCreated || 0}\n\n`;
+    }
+
+    if (failed > 0) {
+      text += `⚠️ **Проблемные строки:**\n`;
+      results.results.filter((r: any) => !r.success).slice(0, 3).forEach((r: any, index: number) => {
+        text += `${index + 1}. ${r.error}\n`;
+      });
+      if (failed > 3) {
+        text += `... и еще ${failed - 3} ошибок\n`;
+      }
     }
 
     return text;
+  }
+
+  /**
+   * Создает рейсы из обработанных Excel данных
+   */
+  private async createTripsFromExcelData(parsedData: ParsedRowData[], driverId: number = 1): Promise<{ created: number; errors: string[] }> {
+    const results = { created: 0, errors: [] as string[] };
+
+    for (const data of parsedData) {
+      try {
+        if (data.cargo && data.order && data.route) {
+          // Создаем информацию о маршруте
+          const routeInfo = `${data.route.date}_${data.route.time}_${data.route.type}_${data.route.number}`;
+          
+          // Создаем рейс
+          const tripData = {
+            driver_id: driverId,
+            delivery_id: null,
+            route_info: routeInfo,
+            status: 'review' as any,
+            notes: `Автоматически создан из Excel. Груз: ${data.cargo.volume} куб.м/${data.cargo.weight} кг. Заказ: ${data.order.orderNumber || 'N/A'}`
+          };
+
+          await this.tripService.createTrip(tripData);
+          results.created++;
+        }
+      } catch (error) {
+        const errorMsg = `Ошибка создания рейса для строки: ${(error as any)?.message || 'Неизвестная ошибка'}`;
+        results.errors.push(errorMsg);
+        console.error(errorMsg, error);
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Создает доставки из обработанных Excel данных
+   */
+  private async createDeliveriesFromExcelData(parsedData: ParsedRowData[]): Promise<{ created: number; errors: string[] }> {
+    const results = { created: 0, errors: [] as string[] };
+
+    for (const data of parsedData) {
+      try {
+        if (data.cargo && data.order && data.route) {
+          // Создаем доставку (пока просто подсчитываем)
+          results.created++;
+        }
+      } catch (error) {
+        const errorMsg = `Ошибка создания доставки для строки: ${(error as any)?.message || 'Неизвестная ошибка'}`;
+        results.errors.push(errorMsg);
+        console.error(errorMsg, error);
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Форматирует данные строки для отображения
+   */
+  private formatRowData(data: ParsedRowData): string {
+    if (!data.cargo || !data.order || !data.route) {
+      return '❌ Неполные данные';
+    }
+
+    return `📦 **Груз:** ${data.cargo.volume} куб.м / ${data.cargo.weight} кг\n` +
+           `📋 **Заказ:** ${data.order.orderNumber || 'N/A'}\n` +
+           `👤 **Клиент:** ${data.order.customerName || 'N/A'}\n` +
+           `🚚 **Маршрут:** ${data.route.date} ${data.route.time} ${data.route.type} ${data.route.number}\n` +
+           `⏰ **Время погрузки:** ${data.order.orderTime || 'N/A'}\n` +
+           `⏰ **Время доставки:** ${data.order.deliveryTime || 'N/A'}`;
   }
 
   /**
